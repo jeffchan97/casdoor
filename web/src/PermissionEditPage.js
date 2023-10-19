@@ -17,6 +17,7 @@ import {Button, Card, Col, Input, Row, Select, Switch} from "antd";
 import * as PermissionBackend from "./backend/PermissionBackend";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
 import * as UserBackend from "./backend/UserBackend";
+import * as GroupBackend from "./backend/GroupBackend";
 import * as Setting from "./Setting";
 import i18next from "i18next";
 import * as RoleBackend from "./backend/RoleBackend";
@@ -30,11 +31,12 @@ class PermissionEditPage extends React.Component {
     this.state = {
       classes: props,
       organizationName: props.organizationName !== undefined ? props.organizationName : props.match.params.organizationName,
-      permissionName: props.match.params.permissionName,
+      permissionName: decodeURIComponent(props.match.params.permissionName),
       permission: null,
       organizations: [],
       model: null,
       users: [],
+      groups: [],
       roles: [],
       models: [],
       resources: [],
@@ -50,7 +52,9 @@ class PermissionEditPage extends React.Component {
   getPermission() {
     PermissionBackend.getPermission(this.state.organizationName, this.state.permissionName)
       .then((res) => {
-        if (res === null) {
+        const permission = res.data;
+
+        if (permission === null) {
           this.props.history.push("/404");
           return;
         }
@@ -61,14 +65,15 @@ class PermissionEditPage extends React.Component {
         }
 
         this.setState({
-          permission: res,
+          permission: permission,
         });
 
-        this.getUsers(res.owner);
-        this.getRoles(res.owner);
-        this.getModels(res.owner);
-        this.getResources(res.owner);
-        this.getModel(res.owner, res.model);
+        this.getUsers(permission.owner);
+        this.getGroups(permission.owner);
+        this.getRoles(permission.owner);
+        this.getModels(permission.owner);
+        this.getResources(permission.owner);
+        this.getModel(permission.owner, permission.model);
       });
   }
 
@@ -76,7 +81,7 @@ class PermissionEditPage extends React.Component {
     OrganizationBackend.getOrganizations("admin")
       .then((res) => {
         this.setState({
-          organizations: (res.msg === undefined) ? res : [],
+          organizations: res.data || [],
         });
       });
   }
@@ -88,8 +93,23 @@ class PermissionEditPage extends React.Component {
           Setting.showMessage("error", res.msg);
           return;
         }
+
         this.setState({
-          users: res,
+          users: res.data,
+        });
+      });
+  }
+
+  getGroups(organizationName) {
+    GroupBackend.getGroups(organizationName)
+      .then((res) => {
+        if (res.status === "error") {
+          Setting.showMessage("error", res.msg);
+          return;
+        }
+
+        this.setState({
+          groups: res.data,
         });
       });
   }
@@ -101,8 +121,9 @@ class PermissionEditPage extends React.Component {
           Setting.showMessage("error", res.msg);
           return;
         }
+
         this.setState({
-          roles: res,
+          roles: res.data,
         });
       });
   }
@@ -114,21 +135,21 @@ class PermissionEditPage extends React.Component {
           Setting.showMessage("error", res.msg);
           return;
         }
+
         this.setState({
-          models: res,
+          models: res.data,
         });
       });
   }
 
   getModel(organizationName, modelName) {
+    if (modelName === "") {
+      return;
+    }
     ModelBackend.getModel(organizationName, modelName)
       .then((res) => {
-        if (res.status === "error") {
-          Setting.showMessage("error", res.msg);
-          return;
-        }
         this.setState({
-          model: res,
+          model: res.data,
         });
       });
   }
@@ -137,7 +158,7 @@ class PermissionEditPage extends React.Component {
     ApplicationBackend.getApplicationsByOrganization("admin", organizationName)
       .then((res) => {
         this.setState({
-          resources: (res.msg === undefined) ? res : [],
+          resources: res.data || [],
         });
       });
   }
@@ -188,6 +209,7 @@ class PermissionEditPage extends React.Component {
             <Select virtual={false} style={{width: "100%"}} disabled={!Setting.isAdminUser(this.props.account)} value={this.state.permission.owner} onChange={(owner => {
               this.updatePermissionField("owner", owner);
               this.getUsers(owner);
+              this.getGroups(owner);
               this.getRoles(owner);
               this.getModels(owner);
               this.getResources(owner);
@@ -255,7 +277,24 @@ class PermissionEditPage extends React.Component {
           <Col span={22} >
             <Select virtual={false} mode="multiple" style={{width: "100%"}} value={this.state.permission.users}
               onChange={(value => {this.updatePermissionField("users", value);})}
-              options={this.state.users.map((user) => Setting.getOption(`${user.owner}/${user.name}`, `${user.owner}/${user.name}`))}
+              options={[
+                Setting.getOption(i18next.t("organization:All"), "*"),
+                ...this.state.users.map((user) => Setting.getOption(`${user.owner}/${user.name}`, `${user.owner}/${user.name}`)),
+              ]}
+            />
+          </Col>
+        </Row>
+        <Row style={{marginTop: "20px"}} >
+          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+            {Setting.getLabel(i18next.t("role:Sub groups"), i18next.t("role:Sub groups - Tooltip"))} :
+          </Col>
+          <Col span={22} >
+            <Select virtual={false} mode="multiple" style={{width: "100%"}} value={this.state.permission.groups}
+              onChange={(value => {this.updatePermissionField("groups", value);})}
+              options={[
+                Setting.getOption(i18next.t("organization:All"), "*"),
+                ...this.state.groups.map((group) => Setting.getOption(`${group.owner}/${group.name}`, `${group.owner}/${group.name}`)),
+              ]}
             />
           </Col>
         </Row>
@@ -266,8 +305,11 @@ class PermissionEditPage extends React.Component {
           <Col span={22} >
             <Select disabled={!this.hasRoleDefinition(this.state.model)} virtual={false} mode="multiple" style={{width: "100%"}} value={this.state.permission.roles}
               onChange={(value => {this.updatePermissionField("roles", value);})}
-              options={this.state.roles.filter(roles => (roles.owner !== this.state.roles.owner || roles.name !== this.state.roles.name)).map((permission) => Setting.getOption(`${permission.owner}/${permission.name}`, `${permission.owner}/${permission.name}`))
-              } />
+              options={[
+                Setting.getOption(i18next.t("organization:All"), "*"),
+                ...this.state.roles.filter(roles => (roles.owner !== this.state.roles.owner || roles.name !== this.state.roles.name)).map((permission) => Setting.getOption(`${permission.owner}/${permission.name}`, `${permission.owner}/${permission.name}`)),
+              ]}
+            />
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}} >
@@ -279,8 +321,11 @@ class PermissionEditPage extends React.Component {
               onChange={(value => {
                 this.updatePermissionField("domains", value);
               })}
-              options={this.state.permission.domains.map((domain) => Setting.getOption(domain, domain))
-              } />
+              options={[
+                Setting.getOption(i18next.t("organization:All"), "*"),
+                ...this.state.permission.domains.map((domain) => Setting.getOption(domain, domain)),
+              ]}
+            />
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}} >
@@ -307,8 +352,11 @@ class PermissionEditPage extends React.Component {
           <Col span={22} >
             <Select virtual={false} mode={(this.state.permission.resourceType === "Custom") ? "tags" : "multiple"} style={{width: "100%"}} value={this.state.permission.resources}
               onChange={(value => {this.updatePermissionField("resources", value);})}
-              options={this.state.resources.map((resource) => Setting.getOption(`${resource.name}`, `${resource.name}`))
-              } />
+              options={[
+                Setting.getOption(i18next.t("organization:All"), "*"),
+                ...this.state.resources.map((resource) => Setting.getOption(`${resource.name}`, `${resource.name}`)),
+              ]}
+            />
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}} >
@@ -316,7 +364,7 @@ class PermissionEditPage extends React.Component {
             {Setting.getLabel(i18next.t("permission:Actions"), i18next.t("permission:Actions - Tooltip"))} :
           </Col>
           <Col span={22} >
-            <Select virtual={false} mode="multiple" style={{width: "100%"}} value={this.state.permission.actions} onChange={(value => {
+            <Select virtual={false} mode={(this.state.permission.resourceType === "Custom") ? "tags" : "multiple"} style={{width: "100%"}} value={this.state.permission.actions} onChange={(value => {
               this.updatePermissionField("actions", value);
             })}
             options={[
@@ -411,7 +459,7 @@ class PermissionEditPage extends React.Component {
     );
   }
 
-  submitPermissionEdit(willExist) {
+  submitPermissionEdit(exitAfterSave) {
     if (this.state.permission.users.length === 0 && this.state.permission.roles.length === 0) {
       Setting.showMessage("error", "The users and roles cannot be empty at the same time");
       return;
@@ -442,10 +490,10 @@ class PermissionEditPage extends React.Component {
             permissionName: this.state.permission.name,
           });
 
-          if (willExist) {
+          if (exitAfterSave) {
             this.props.history.push("/permissions");
           } else {
-            this.props.history.push(`/permissions/${this.state.permission.owner}/${this.state.permission.name}`);
+            this.props.history.push(`/permissions/${this.state.permission.owner}/${encodeURIComponent(this.state.permission.name)}`);
           }
         } else {
           Setting.showMessage("error", `${i18next.t("general:Failed to save")}: ${res.msg}`);

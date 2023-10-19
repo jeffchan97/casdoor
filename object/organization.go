@@ -64,6 +64,7 @@ type Organization struct {
 	Languages          []string   `xorm:"varchar(255)" json:"languages"`
 	ThemeData          *ThemeData `xorm:"json" json:"themeData"`
 	MasterPassword     string     `xorm:"varchar(100)" json:"masterPassword"`
+	DefaultPassword    string     `xorm:"varchar(100)" json:"defaultPassword"`
 	InitScore          int        `json:"initScore"`
 	EnableSoftDeletion bool       `json:"enableSoftDeletion"`
 	IsProfilePublic    bool       `json:"isProfilePublic"`
@@ -80,12 +81,12 @@ func GetOrganizationCount(owner, field, value string) (int64, error) {
 func GetOrganizations(owner string, name ...string) ([]*Organization, error) {
 	organizations := []*Organization{}
 	if name != nil && len(name) > 0 {
-		err := adapter.Engine.Desc("created_time").Where(builder.In("name", name)).Find(&organizations)
+		err := ormer.Engine.Desc("created_time").Where(builder.In("name", name)).Find(&organizations)
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		err := adapter.Engine.Desc("created_time").Find(&organizations, &Organization{Owner: owner})
+		err := ormer.Engine.Desc("created_time").Find(&organizations, &Organization{Owner: owner})
 		if err != nil {
 			return nil, err
 		}
@@ -96,7 +97,7 @@ func GetOrganizations(owner string, name ...string) ([]*Organization, error) {
 
 func GetOrganizationsByFields(owner string, fields ...string) ([]*Organization, error) {
 	organizations := []*Organization{}
-	err := adapter.Engine.Desc("created_time").Cols(fields...).Find(&organizations, &Organization{Owner: owner})
+	err := ormer.Engine.Desc("created_time").Cols(fields...).Find(&organizations, &Organization{Owner: owner})
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +127,7 @@ func getOrganization(owner string, name string) (*Organization, error) {
 	}
 
 	organization := Organization{Owner: owner, Name: name}
-	existed, err := adapter.Engine.Get(&organization)
+	existed, err := ormer.Engine.Get(&organization)
 	if err != nil {
 		return nil, err
 	}
@@ -154,6 +155,9 @@ func GetMaskedOrganization(organization *Organization, errs ...error) (*Organiza
 
 	if organization.MasterPassword != "" {
 		organization.MasterPassword = "***"
+	}
+	if organization.DefaultPassword != "" {
+		organization.DefaultPassword = "***"
 	}
 	return organization, nil
 }
@@ -189,7 +193,7 @@ func UpdateOrganization(id string, organization *Organization) (bool, error) {
 	if name != organization.Name {
 		err := organizationChangeTrigger(name, organization.Name)
 		if err != nil {
-			return false, nil
+			return false, err
 		}
 	}
 
@@ -201,10 +205,15 @@ func UpdateOrganization(id string, organization *Organization) (bool, error) {
 		}
 	}
 
-	session := adapter.Engine.ID(core.PK{owner, name}).AllCols()
+	session := ormer.Engine.ID(core.PK{owner, name}).AllCols()
+
 	if organization.MasterPassword == "***" {
 		session.Omit("master_password")
 	}
+	if organization.DefaultPassword == "***" {
+		session.Omit("default_password")
+	}
+
 	affected, err := session.Update(organization)
 	if err != nil {
 		return false, err
@@ -214,7 +223,7 @@ func UpdateOrganization(id string, organization *Organization) (bool, error) {
 }
 
 func AddOrganization(organization *Organization) (bool, error) {
-	affected, err := adapter.Engine.Insert(organization)
+	affected, err := ormer.Engine.Insert(organization)
 	if err != nil {
 		return false, err
 	}
@@ -227,7 +236,7 @@ func DeleteOrganization(organization *Organization) (bool, error) {
 		return false, nil
 	}
 
-	affected, err := adapter.Engine.ID(core.PK{organization.Owner, organization.Name}).Delete(&Organization{})
+	affected, err := ormer.Engine.ID(core.PK{organization.Owner, organization.Name}).Delete(&Organization{})
 	if err != nil {
 		return false, err
 	}
@@ -299,7 +308,7 @@ func GetDefaultApplication(id string) (*Application, error) {
 	}
 
 	applications := []*Application{}
-	err = adapter.Engine.Asc("created_time").Find(&applications, &Application{Organization: organization.Name})
+	err = ormer.Engine.Asc("created_time").Find(&applications, &Application{Organization: organization.Name})
 	if err != nil {
 		return nil, err
 	}
@@ -330,7 +339,7 @@ func GetDefaultApplication(id string) (*Application, error) {
 }
 
 func organizationChangeTrigger(oldName string, newName string) error {
-	session := adapter.Engine.NewSession()
+	session := ormer.Engine.NewSession()
 	defer session.Close()
 
 	err := session.Begin()
@@ -360,7 +369,7 @@ func organizationChangeTrigger(oldName string, newName string) error {
 	}
 
 	role := new(Role)
-	_, err = adapter.Engine.Where("owner=?", oldName).Get(role)
+	_, err = ormer.Engine.Where("owner=?", oldName).Get(role)
 	if err != nil {
 		return err
 	}
@@ -385,7 +394,7 @@ func organizationChangeTrigger(oldName string, newName string) error {
 	}
 
 	permission := new(Permission)
-	_, err = adapter.Engine.Where("owner=?", oldName).Get(permission)
+	_, err = ormer.Engine.Where("owner=?", oldName).Get(permission)
 	if err != nil {
 		return err
 	}
@@ -409,9 +418,9 @@ func organizationChangeTrigger(oldName string, newName string) error {
 		return err
 	}
 
-	casbinAdapter := new(CasbinAdapter)
-	casbinAdapter.Owner = newName
-	_, err = session.Where("owner=?", oldName).Update(casbinAdapter)
+	adapter := new(Adapter)
+	adapter.Owner = newName
+	_, err = session.Where("owner=?", oldName).Update(adapter)
 	if err != nil {
 		return err
 	}
@@ -431,16 +440,8 @@ func organizationChangeTrigger(oldName string, newName string) error {
 	}
 
 	payment := new(Payment)
-	payment.Organization = newName
-	_, err = session.Where("organization=?", oldName).Update(payment)
-	if err != nil {
-		return err
-	}
-
-	record := new(Record)
-	record.Owner = newName
-	record.Organization = newName
-	_, err = session.Where("organization=?", oldName).Update(record)
+	payment.Owner = newName
+	_, err = session.Where("owner=?", oldName).Update(payment)
 	if err != nil {
 		return err
 	}

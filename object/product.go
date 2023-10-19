@@ -17,6 +17,8 @@ package object
 import (
 	"fmt"
 
+	"github.com/casdoor/casdoor/pp"
+
 	"github.com/casdoor/casdoor/util"
 	"github.com/xorm-io/core"
 )
@@ -35,7 +37,7 @@ type Product struct {
 	Price       float64  `json:"price"`
 	Quantity    int      `json:"quantity"`
 	Sold        int      `json:"sold"`
-	Providers   []string `xorm:"varchar(100)" json:"providers"`
+	Providers   []string `xorm:"varchar(255)" json:"providers"`
 	ReturnUrl   string   `xorm:"varchar(1000)" json:"returnUrl"`
 
 	State string `xorm:"varchar(100)" json:"state"`
@@ -50,7 +52,7 @@ func GetProductCount(owner, field, value string) (int64, error) {
 
 func GetProducts(owner string) ([]*Product, error) {
 	products := []*Product{}
-	err := adapter.Engine.Desc("created_time").Find(&products, &Product{Owner: owner})
+	err := ormer.Engine.Desc("created_time").Find(&products, &Product{Owner: owner})
 	if err != nil {
 		return products, err
 	}
@@ -75,7 +77,7 @@ func getProduct(owner string, name string) (*Product, error) {
 	}
 
 	product := Product{Owner: owner, Name: name}
-	existed, err := adapter.Engine.Get(&product)
+	existed, err := ormer.Engine.Get(&product)
 	if err != nil {
 		return &product, nil
 	}
@@ -100,7 +102,7 @@ func UpdateProduct(id string, product *Product) (bool, error) {
 		return false, nil
 	}
 
-	affected, err := adapter.Engine.ID(core.PK{owner, name}).AllCols().Update(product)
+	affected, err := ormer.Engine.ID(core.PK{owner, name}).AllCols().Update(product)
 	if err != nil {
 		return false, err
 	}
@@ -109,7 +111,7 @@ func UpdateProduct(id string, product *Product) (bool, error) {
 }
 
 func AddProduct(product *Product) (bool, error) {
-	affected, err := adapter.Engine.Insert(product)
+	affected, err := ormer.Engine.Insert(product)
 	if err != nil {
 		return false, err
 	}
@@ -118,7 +120,7 @@ func AddProduct(product *Product) (bool, error) {
 }
 
 func DeleteProduct(product *Product) (bool, error) {
-	affected, err := adapter.Engine.ID(core.PK{product.Owner, product.Name}).Delete(&Product{})
+	affected, err := ormer.Engine.ID(core.PK{product.Owner, product.Name}).Delete(&Product{})
 	if err != nil {
 		return false, err
 	}
@@ -139,92 +141,112 @@ func (product *Product) isValidProvider(provider *Provider) bool {
 	return false
 }
 
-func (product *Product) getProvider(providerId string) (*Provider, error) {
-	provider, err := getProvider(product.Owner, providerId)
+func (product *Product) getProvider(providerName string) (*Provider, error) {
+	provider, err := getProvider(product.Owner, providerName)
 	if err != nil {
 		return nil, err
 	}
 
 	if provider == nil {
-		return nil, fmt.Errorf("the payment provider: %s does not exist", providerId)
+		return nil, fmt.Errorf("the payment provider: %s does not exist", providerName)
 	}
 
 	if !product.isValidProvider(provider) {
-		return nil, fmt.Errorf("the payment provider: %s is not valid for the product: %s", providerId, product.Name)
+		return nil, fmt.Errorf("the payment provider: %s is not valid for the product: %s", providerName, product.Name)
 	}
 
 	return provider, nil
 }
 
-func BuyProduct(id string, providerName string, user *User, host string) (string, string, error) {
+func BuyProduct(id string, user *User, providerName, pricingName, planName, host string) (*Payment, error) {
 	product, err := GetProduct(id)
 	if err != nil {
-		return "", "", err
+		return nil, err
 	}
-
 	if product == nil {
-		return "", "", fmt.Errorf("the product: %s does not exist", id)
+		return nil, fmt.Errorf("the product: %s does not exist", id)
 	}
 
 	provider, err := product.getProvider(providerName)
 	if err != nil {
-		return "", "", err
+		return nil, err
 	}
 
-	pProvider, _, err := provider.getPaymentProvider()
+	pProvider, err := GetPaymentProvider(provider)
 	if err != nil {
-		return "", "", err
+		return nil, err
 	}
 
 	owner := product.Owner
 	productName := product.Name
 	payerName := fmt.Sprintf("%s | %s", user.Name, user.DisplayName)
-	paymentName := util.GenerateTimeId()
+	paymentName := fmt.Sprintf("payment_%v", util.GenerateTimeId())
 	productDisplayName := product.DisplayName
 
 	originFrontend, originBackend := getOriginFromHost(host)
-	returnUrl := fmt.Sprintf("%s/payments/%s/result", originFrontend, paymentName)
-	notifyUrl := fmt.Sprintf("%s/api/notify-payment/%s/%s/%s/%s", originBackend, owner, providerName, productName, paymentName)
-
+	returnUrl := fmt.Sprintf("%s/payments/%s/%s/result", originFrontend, owner, paymentName)
+	notifyUrl := fmt.Sprintf("%s/api/notify-payment/%s/%s", originBackend, owner, paymentName)
+	if user.Type == "paid-user" {
+		// Create a subscription for `paid-user`
+		if pricingName != "" && planName != "" {
+			plan, err := GetPlan(util.GetId(owner, planName))
+			if err != nil {
+				return nil, err
+			}
+			if plan == nil {
+				return nil, fmt.Errorf("the plan: %s does not exist", planName)
+			}
+			sub := NewSubscription(owner, user.Name, plan.Name, paymentName, plan.Period)
+			_, err = AddSubscription(sub)
+			if err != nil {
+				return nil, err
+			}
+			returnUrl = fmt.Sprintf("%s/buy-plan/%s/%s/result?subscription=%s", originFrontend, owner, pricingName, sub.Name)
+		}
+	}
+	// Create an OrderId and get the payUrl
 	payUrl, orderId, err := pProvider.Pay(providerName, productName, payerName, paymentName, productDisplayName, product.Price, product.Currency, returnUrl, notifyUrl)
 	if err != nil {
-		return "", "", err
+		return nil, err
 	}
+	// Create a Payment linked with Product and Order
+	payment := &Payment{
+		Owner:       product.Owner,
+		Name:        paymentName,
+		CreatedTime: util.GetCurrentTime(),
+		DisplayName: paymentName,
 
-	payment := Payment{
-		Owner:              product.Owner,
-		Name:               paymentName,
-		CreatedTime:        util.GetCurrentTime(),
-		DisplayName:        paymentName,
-		Provider:           provider.Name,
-		Type:               provider.Type,
-		Organization:       user.Owner,
-		User:               user.Name,
+		Provider: provider.Name,
+		Type:     provider.Type,
+
 		ProductName:        productName,
 		ProductDisplayName: productDisplayName,
 		Detail:             product.Detail,
 		Tag:                product.Tag,
 		Currency:           product.Currency,
 		Price:              product.Price,
-		PayUrl:             payUrl,
 		ReturnUrl:          product.ReturnUrl,
-		State:              "Created",
+
+		User:       user.Name,
+		PayUrl:     payUrl,
+		SuccessUrl: returnUrl,
+		State:      pp.PaymentStateCreated,
+		OutOrderId: orderId,
 	}
 
 	if provider.Type == "Dummy" {
-		payment.State = "Paid"
+		payment.State = pp.PaymentStatePaid
 	}
 
-	affected, err := AddPayment(&payment)
+	affected, err := AddPayment(payment)
 	if err != nil {
-		return "", "", err
+		return nil, err
 	}
 
 	if !affected {
-		return "", "", fmt.Errorf("failed to add payment: %s", util.StructToJson(payment))
+		return nil, fmt.Errorf("failed to add payment: %s", util.StructToJson(payment))
 	}
-
-	return payUrl, orderId, err
+	return payment, err
 }
 
 func ExtendProductWithProviders(product *Product) error {
@@ -246,4 +268,39 @@ func ExtendProductWithProviders(product *Product) error {
 	}
 
 	return nil
+}
+
+func CreateProductForPlan(plan *Plan) *Product {
+	product := &Product{
+		Owner:       plan.Owner,
+		Name:        fmt.Sprintf("product_%v", util.GetRandomName()),
+		DisplayName: fmt.Sprintf("Product for Plan %v/%v/%v", plan.Name, plan.DisplayName, plan.Period),
+		CreatedTime: plan.CreatedTime,
+
+		Image:       "https://cdn.casbin.org/img/casdoor-logo_1185x256.png", // TODO
+		Detail:      fmt.Sprintf("This product was auto created for plan %v(%v), subscription period is %v", plan.Name, plan.DisplayName, plan.Period),
+		Description: plan.Description,
+		Tag:         "auto_created_product_for_plan",
+		Price:       plan.Price,
+		Currency:    plan.Currency,
+
+		Quantity: 999,
+		Sold:     0,
+
+		Providers: plan.PaymentProviders,
+		State:     "Published",
+	}
+	if product.Providers == nil {
+		product.Providers = []string{}
+	}
+	return product
+}
+
+func UpdateProductForPlan(plan *Plan, product *Product) {
+	product.Owner = plan.Owner
+	product.DisplayName = fmt.Sprintf("Product for Plan %v/%v/%v", plan.Name, plan.DisplayName, plan.Period)
+	product.Detail = fmt.Sprintf("This product was auto created for plan %v(%v), subscription period is %v", plan.Name, plan.DisplayName, plan.Period)
+	product.Price = plan.Price
+	product.Currency = plan.Currency
+	product.Providers = plan.PaymentProviders
 }

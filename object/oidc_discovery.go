@@ -59,7 +59,7 @@ func isIpAddress(host string) bool {
 	return ip != nil
 }
 
-func getOriginFromHost(host string) (string, string) {
+func getOriginFromHostInternal(host string) (string, string) {
 	origin := conf.GetConfigString("origin")
 	if origin != "" {
 		return origin, origin
@@ -80,6 +80,17 @@ func getOriginFromHost(host string) (string, string) {
 	} else {
 		return fmt.Sprintf("%s%s", protocol, host), fmt.Sprintf("%s%s", protocol, host)
 	}
+}
+
+func getOriginFromHost(host string) (string, string) {
+	originF, originB := getOriginFromHostInternal(host)
+
+	originFrontend := conf.GetConfigString("originFrontend")
+	if originFrontend != "" {
+		originF = originFrontend
+	}
+
+	return originF, originB
 }
 
 func GetOidcDiscovery(host string) OidcDiscovery {
@@ -103,7 +114,7 @@ func GetOidcDiscovery(host string) OidcDiscovery {
 		SubjectTypesSupported:                  []string{"public"},
 		IdTokenSigningAlgValuesSupported:       []string{"RS256"},
 		ScopesSupported:                        []string{"openid", "email", "profile", "address", "phone", "offline_access"},
-		ClaimsSupported:                        []string{"iss", "ver", "sub", "aud", "iat", "exp", "id", "type", "displayName", "avatar", "permanentAvatar", "email", "phone", "location", "affiliation", "title", "homepage", "bio", "tag", "region", "language", "score", "ranking", "isOnline", "isAdmin", "isGlobalAdmin", "isForbidden", "signupApplication", "ldap"},
+		ClaimsSupported:                        []string{"iss", "ver", "sub", "aud", "iat", "exp", "id", "type", "displayName", "avatar", "permanentAvatar", "email", "phone", "location", "affiliation", "title", "homepage", "bio", "tag", "region", "language", "score", "ranking", "isOnline", "isAdmin", "isForbidden", "signupApplication", "ldap"},
 		RequestParameterSupported:              true,
 		RequestObjectSigningAlgValuesSupported: []string{"HS256", "HS384", "HS512"},
 		EndSessionEndpoint:                     fmt.Sprintf("%s/api/logout", originBackend),
@@ -127,9 +138,16 @@ func GetJsonWebKeySet() (jose.JSONWebKeySet, error) {
 			continue
 		}
 
+		if cert.Certificate == "" {
+			return jwks, fmt.Errorf("the certificate field should not be empty for the cert: %v", cert)
+		}
+
 		certPemBlock := []byte(cert.Certificate)
 		certDerBlock, _ := pem.Decode(certPemBlock)
-		x509Cert, _ := x509.ParseCertificate(certDerBlock.Bytes)
+		x509Cert, err := x509.ParseCertificate(certDerBlock.Bytes)
+		if err != nil {
+			return jwks, err
+		}
 
 		var jwk jose.JSONWebKey
 		jwk.Key = x509Cert.PublicKey

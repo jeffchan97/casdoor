@@ -35,14 +35,14 @@ type Object struct {
 func getUsername(ctx *context.Context) (username string) {
 	defer func() {
 		if r := recover(); r != nil {
-			username = getUsernameByClientIdSecret(ctx)
+			username, _ = getUsernameByClientIdSecret(ctx)
 		}
 	}()
 
 	username = ctx.Input.Session("username").(string)
 
 	if username == "" {
-		username = getUsernameByClientIdSecret(ctx)
+		username, _ = getUsernameByClientIdSecret(ctx)
 	}
 
 	if username == "" {
@@ -69,7 +69,7 @@ func getObject(ctx *context.Context) (string, string) {
 		// query == "?id=built-in/admin"
 		id := ctx.Input.Query("id")
 		if id != "" {
-			return util.GetOwnerAndNameFromId(id)
+			return util.GetOwnerAndNameFromIdNoCheck(id)
 		}
 
 		owner := ctx.Input.Query("owner")
@@ -139,6 +139,10 @@ func getUrlPath(urlPath string) string {
 		return "/cas"
 	}
 
+	if strings.HasPrefix(urlPath, "/scim") {
+		return "/scim"
+	}
+
 	if strings.HasPrefix(urlPath, "/api/login/oauth") {
 		return "/api/login/oauth"
 	}
@@ -150,13 +154,13 @@ func getUrlPath(urlPath string) string {
 	return urlPath
 }
 
-func AuthzFilter(ctx *context.Context) {
+func ApiFilter(ctx *context.Context) {
 	subOwner, subName := getSubject(ctx)
 	method := ctx.Request.Method
 	urlPath := getUrlPath(ctx.Request.URL.Path)
 
 	objOwner, objName := "", ""
-	if urlPath != "/api/get-app-login" {
+	if urlPath != "/api/get-app-login" && urlPath != "/api/get-resource" {
 		objOwner, objName = getObject(ctx)
 	}
 

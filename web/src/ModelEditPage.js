@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import React from "react";
-import {Button, Card, Col, Input, Row, Select, Switch} from "antd";
+import {Button, Card, Col, Input, Row, Select} from "antd";
 import * as ModelBackend from "./backend/ModelBackend";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
 import * as Setting from "./Setting";
@@ -48,7 +48,7 @@ class ModelEditPage extends React.Component {
   getModel() {
     ModelBackend.getModel(this.state.organizationName, this.state.modelName)
       .then((res) => {
-        if (res === null) {
+        if (res.data === null) {
           this.props.history.push("/404");
           return;
         }
@@ -59,7 +59,7 @@ class ModelEditPage extends React.Component {
         }
 
         this.setState({
-          model: res,
+          model: res.data,
         });
       });
   }
@@ -68,7 +68,7 @@ class ModelEditPage extends React.Component {
     OrganizationBackend.getOrganizations("admin")
       .then((res) => {
         this.setState({
-          organizations: (res.msg === undefined) ? res : [],
+          organizations: res.data || [],
         });
       });
   }
@@ -105,7 +105,7 @@ class ModelEditPage extends React.Component {
             {Setting.getLabel(i18next.t("general:Organization"), i18next.t("general:Organization - Tooltip"))} :
           </Col>
           <Col span={22} >
-            <Select virtual={false} style={{width: "100%"}} disabled={!Setting.isAdminUser(this.props.account)} value={this.state.model.owner} onChange={(value => {this.updateModelField("owner", value);})}>
+            <Select virtual={false} style={{width: "100%"}} disabled={!Setting.isAdminUser(this.props.account) || Setting.builtInObject(this.state.model)} value={this.state.model.owner} onChange={(value => {this.updateModelField("owner", value);})}>
               {
                 this.state.organizations.map((organization, index) => <Option key={index} value={organization.name}>{organization.name}</Option>)
               }
@@ -117,7 +117,7 @@ class ModelEditPage extends React.Component {
             {Setting.getLabel(i18next.t("general:Name"), i18next.t("general:Name - Tooltip"))} :
           </Col>
           <Col span={22} >
-            <Input value={this.state.model.name} onChange={e => {
+            <Input disabled={Setting.builtInObject(this.state.model)} value={this.state.model.name} onChange={e => {
               this.updateModelField("name", e.target.value);
             }} />
           </Col>
@@ -152,27 +152,20 @@ class ModelEditPage extends React.Component {
                 value={this.state.model.modelText}
                 options={{mode: "properties", theme: "default"}}
                 onBeforeChange={(editor, data, value) => {
+                  if (Setting.builtInObject(this.state.model)) {
+                    return;
+                  }
                   this.updateModelField("modelText", value);
                 }}
               />
             </div>
           </Col>
         </Row>
-        <Row style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 19 : 2}>
-            {Setting.getLabel(i18next.t("general:Is enabled"), i18next.t("general:Is enabled - Tooltip"))} :
-          </Col>
-          <Col span={1} >
-            <Switch checked={this.state.model.isEnabled} onChange={checked => {
-              this.updateModelField("isEnabled", checked);
-            }} />
-          </Col>
-        </Row>
       </Card>
     );
   }
 
-  submitModelEdit(willExist) {
+  submitModelEdit(exitAfterSave) {
     const model = Setting.deepCopy(this.state.model);
     ModelBackend.updateModel(this.state.organizationName, this.state.modelName, model)
       .then((res) => {
@@ -182,7 +175,7 @@ class ModelEditPage extends React.Component {
             modelName: this.state.model.name,
           });
 
-          if (willExist) {
+          if (exitAfterSave) {
             this.props.history.push("/models");
           } else {
             this.props.history.push(`/models/${this.state.model.owner}/${this.state.model.name}`);

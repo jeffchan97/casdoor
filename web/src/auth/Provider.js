@@ -73,7 +73,7 @@ const authInfo = {
     scope: "read_user+profile",
     endpoint: "https://gitlab.com/oauth/authorize",
   },
-  Adfs: {
+  ADFS: {
     scope: "openid",
     endpoint: "http://example.com",
   },
@@ -317,6 +317,14 @@ const authInfo = {
     scope: "user:read",
     endpoint: "https://zoom.us/oauth/authorize",
   },
+  MetaMask: {
+    scope: "",
+    endpoint: "",
+  },
+  Web3Onboard: {
+    scope: "",
+    endpoint: "",
+  },
 };
 
 export function getProviderUrl(provider) {
@@ -371,7 +379,7 @@ export function getAuthUrl(application, provider, method) {
   }
 
   let endpoint = authInfo[provider.type].endpoint;
-  const redirectUri = `${window.location.origin}/callback`;
+  let redirectUri = `${window.location.origin}/callback`;
   const scope = authInfo[provider.type].scope;
 
   const isShortState = provider.type === "WeChat" && navigator.userAgent.includes("MicroMessenger");
@@ -382,6 +390,8 @@ export function getAuthUrl(application, provider, method) {
     if (provider.domain !== "") {
       endpoint = endpoint.replace("common", provider.domain);
     }
+  } else if (provider.type === "Apple") {
+    redirectUri = `${window.location.origin}/api/callback`;
   }
 
   if (provider.type === "Google" || provider.type === "GitHub" || provider.type === "QQ" || provider.type === "Facebook"
@@ -429,7 +439,7 @@ export function getAuthUrl(application, provider, method) {
     }
   } else if (provider.type === "Lark") {
     return `${endpoint}?app_id=${provider.clientId}&redirect_uri=${redirectUri}&state=${state}`;
-  } else if (provider.type === "Adfs") {
+  } else if (provider.type === "ADFS") {
     return `${provider.domain}/adfs/oauth2/authorize?client_id=${provider.clientId}&redirect_uri=${redirectUri}&state=${state}&response_type=code&nonce=casdoor&scope=openid`;
   } else if (provider.type === "Baidu") {
     return `${endpoint}?client_id=${provider.clientId}&redirect_uri=${redirectUri}&state=${state}&response_type=code&scope=${scope}&display=popup`;
@@ -440,7 +450,7 @@ export function getAuthUrl(application, provider, method) {
   } else if (provider.type === "Infoflow") {
     return `${endpoint}?appid=${provider.clientId}&redirect_uri=${redirectUri}?state=${state}`;
   } else if (provider.type === "Apple") {
-    return `${endpoint}?client_id=${provider.clientId}&redirect_uri=${redirectUri}&state=${state}&response_type=code&scope=${scope}&response_mode=form_post`;
+    return `${endpoint}?client_id=${provider.clientId}&redirect_uri=${redirectUri}&state=${state}&response_type=code%20id_token&scope=${scope}&response_mode=form_post`;
   } else if (provider.type === "Steam") {
     return `${endpoint}?openid.claimed_id=http://specs.openid.net/auth/2.0/identifier_select&openid.identity=http://specs.openid.net/auth/2.0/identifier_select&openid.mode=checkid_setup&openid.ns=http://specs.openid.net/auth/2.0&openid.realm=${window.location.origin}&openid.return_to=${redirectUri}?state=${state}`;
   } else if (provider.type === "Okta") {
@@ -459,5 +469,9 @@ export function getAuthUrl(application, provider, method) {
     return `${endpoint}?client_id=${provider.clientId}&redirect_uri=${redirectUri}&scope=${scope}&state=${state}&grant_options[]=per-user`;
   } else if (provider.type === "Twitter" || provider.type === "Fitbit") {
     return `${endpoint}?client_id=${provider.clientId}&redirect_uri=${redirectUri}&state=${state}&response_type=code&scope=${scope}&code_challenge=${codeChallenge}&code_challenge_method=S256`;
+  } else if (provider.type === "MetaMask") {
+    return `${redirectUri}?state=${state}`;
+  } else if (provider.type === "Web3Onboard") {
+    return `${redirectUri}?state=${state}`;
   }
 }

@@ -16,6 +16,7 @@ package routers
 
 import (
 	"compress/gzip"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -32,7 +33,18 @@ var (
 	oldStaticBaseUrl = "https://cdn.casbin.org"
 	newStaticBaseUrl = conf.GetConfigString("staticBaseUrl")
 	enableGzip       = conf.GetConfigBool("enableGzip")
+	frontendBaseDir  = conf.GetConfigString("frontendBaseDir")
 )
+
+func getWebBuildFolder() string {
+	path := "web/build"
+	if util.FileExist(filepath.Join(path, "index.html")) || frontendBaseDir == "" {
+		return path
+	}
+
+	path = filepath.Join(frontendBaseDir, "web/build")
+	return path
+}
 
 func StaticFilter(ctx *context.Context) {
 	urlPath := ctx.Request.URL.Path
@@ -47,32 +59,41 @@ func StaticFilter(ctx *context.Context) {
 	if strings.HasPrefix(urlPath, "/cas") && (strings.HasSuffix(urlPath, "/serviceValidate") || strings.HasSuffix(urlPath, "/proxy") || strings.HasSuffix(urlPath, "/proxyValidate") || strings.HasSuffix(urlPath, "/validate") || strings.HasSuffix(urlPath, "/p3/serviceValidate") || strings.HasSuffix(urlPath, "/p3/proxyValidate") || strings.HasSuffix(urlPath, "/samlValidate")) {
 		return
 	}
+	if strings.HasPrefix(urlPath, "/scim") {
+		return
+	}
 
-	path := "web/build"
+	webBuildFolder := getWebBuildFolder()
+	path := webBuildFolder
 	if urlPath == "/" {
 		path += "/index.html"
 	} else {
 		path += urlPath
 	}
 
-	path2 := strings.TrimPrefix(path, "web/build/images/")
-	if util.FileExist(path2) {
-		makeGzipResponse(ctx.ResponseWriter, ctx.Request, path2)
-		return
-	}
-
 	if !util.FileExist(path) {
-		path = "web/build/index.html"
+		path = webBuildFolder + "/index.html"
+	}
+	if !util.FileExist(path) {
+		dir, err := os.Getwd()
+		if err != nil {
+			panic(err)
+		}
+		dir = strings.ReplaceAll(dir, "\\", "/")
+		ctx.ResponseWriter.WriteHeader(http.StatusNotFound)
+		errorText := fmt.Sprintf("The Casdoor frontend HTML file: \"index.html\" was not found, it should be placed at: \"%s/web/build/index.html\". For more information, see: https://casdoor.org/docs/basic/server-installation/#frontend-1", dir)
+		http.ServeContent(ctx.ResponseWriter, ctx.Request, "Casdoor frontend has encountered error...", time.Now(), strings.NewReader(errorText))
+		return
 	}
 
 	if oldStaticBaseUrl == newStaticBaseUrl {
 		makeGzipResponse(ctx.ResponseWriter, ctx.Request, path)
 	} else {
-		serveFileWithReplace(ctx.ResponseWriter, ctx.Request, path, oldStaticBaseUrl, newStaticBaseUrl)
+		serveFileWithReplace(ctx.ResponseWriter, ctx.Request, path)
 	}
 }
 
-func serveFileWithReplace(w http.ResponseWriter, r *http.Request, name string, old string, new string) {
+func serveFileWithReplace(w http.ResponseWriter, r *http.Request, name string) {
 	f, err := os.Open(filepath.Clean(name))
 	if err != nil {
 		panic(err)
@@ -85,13 +106,9 @@ func serveFileWithReplace(w http.ResponseWriter, r *http.Request, name string, o
 	}
 
 	oldContent := util.ReadStringFromPath(name)
-	newContent := strings.ReplaceAll(oldContent, old, new)
+	newContent := strings.ReplaceAll(oldContent, oldStaticBaseUrl, newStaticBaseUrl)
 
 	http.ServeContent(w, r, d.Name(), d.ModTime(), strings.NewReader(newContent))
-	_, err = w.Write([]byte(newContent))
-	if err != nil {
-		panic(err)
-	}
 }
 
 type gzipResponseWriter struct {
@@ -105,12 +122,12 @@ func (w gzipResponseWriter) Write(b []byte) (int, error) {
 
 func makeGzipResponse(w http.ResponseWriter, r *http.Request, path string) {
 	if !enableGzip || !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
-		http.ServeFile(w, r, path)
+		serveFileWithReplace(w, r, path)
 		return
 	}
 	w.Header().Set("Content-Encoding", "gzip")
 	gz := gzip.NewWriter(w)
 	defer gz.Close()
 	gzw := gzipResponseWriter{Writer: gz, ResponseWriter: w}
-	http.ServeFile(gzw, r, path)
+	serveFileWithReplace(gzw, r, path)
 }

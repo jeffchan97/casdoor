@@ -29,7 +29,13 @@ func AutoSigninFilter(ctx *context.Context) {
 
 	// GET parameter like "/page?access_token=123" or
 	// HTTP Bearer token like "Authorization: Bearer 123"
-	accessToken := util.GetMaxLenStr(ctx.Input.Query("accessToken"), ctx.Input.Query("access_token"), parseBearerToken(ctx))
+	accessToken := ctx.Input.Query("accessToken")
+	if accessToken == "" {
+		accessToken = ctx.Input.Query("access_token")
+	}
+	if accessToken == "" {
+		accessToken = parseBearerToken(ctx)
+	}
 
 	if accessToken != "" {
 		token, err := object.GetTokenByAccessToken(accessToken)
@@ -39,19 +45,21 @@ func AutoSigninFilter(ctx *context.Context) {
 		}
 
 		if token == nil {
-			responseError(ctx, "Access token doesn't exist")
+			responseError(ctx, "Access token doesn't exist in database")
 			return
 		}
 
-		if util.IsTokenExpired(token.CreatedTime, token.ExpiresIn) {
-			responseError(ctx, "Access token has expired")
+		isExpired, expireTime := util.IsTokenExpired(token.CreatedTime, token.ExpiresIn)
+		if isExpired {
+			responseError(ctx, fmt.Sprintf("Access token has expired, expireTime = %s", expireTime))
 			return
 		}
 
 		userId := util.GetId(token.Organization, token.User)
 		application, err := object.GetApplicationByUserId(fmt.Sprintf("app/%s", token.Application))
 		if err != nil {
-			panic(err)
+			responseError(ctx, err.Error())
+			return
 		}
 
 		setSessionUser(ctx, userId)
@@ -60,7 +68,11 @@ func AutoSigninFilter(ctx *context.Context) {
 	}
 
 	// "/page?clientId=123&clientSecret=456"
-	userId := getUsernameByClientIdSecret(ctx)
+	userId, err := getUsernameByClientIdSecret(ctx)
+	if err != nil {
+		responseError(ctx, err.Error())
+		return
+	}
 	if userId != "" {
 		setSessionUser(ctx, userId)
 		return

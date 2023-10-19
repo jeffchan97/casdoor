@@ -16,7 +16,6 @@ package object
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/casdoor/casdoor/util"
 	"github.com/xorm-io/core"
@@ -33,12 +32,26 @@ type Pricing struct {
 	IsEnabled     bool     `json:"isEnabled"`
 	TrialDuration int      `json:"trialDuration"`
 	Application   string   `xorm:"varchar(100)" json:"application"`
+}
 
-	Submitter   string `xorm:"varchar(100)" json:"submitter"`
-	Approver    string `xorm:"varchar(100)" json:"approver"`
-	ApproveTime string `xorm:"varchar(100)" json:"approveTime"`
+func (pricing *Pricing) GetId() string {
+	return fmt.Sprintf("%s/%s", pricing.Owner, pricing.Name)
+}
 
-	State string `xorm:"varchar(100)" json:"state"`
+func (pricing *Pricing) HasPlan(planName string) (bool, error) {
+	planId := util.GetId(pricing.Owner, planName)
+	plan, err := GetPlan(planId)
+	if err != nil {
+		return false, err
+	}
+	if plan == nil {
+		return false, fmt.Errorf("plan: %s does not exist", planId)
+	}
+
+	if util.InSlice(pricing.Plans, plan.Name) {
+		return true, nil
+	}
+	return false, nil
 }
 
 func GetPricingCount(owner, field, value string) (int64, error) {
@@ -48,7 +61,7 @@ func GetPricingCount(owner, field, value string) (int64, error) {
 
 func GetPricings(owner string) ([]*Pricing, error) {
 	pricings := []*Pricing{}
-	err := adapter.Engine.Desc("created_time").Find(&pricings, &Pricing{Owner: owner})
+	err := ormer.Engine.Desc("created_time").Find(&pricings, &Pricing{Owner: owner})
 	if err != nil {
 		return pricings, err
 	}
@@ -72,9 +85,9 @@ func getPricing(owner, name string) (*Pricing, error) {
 	}
 
 	pricing := Pricing{Owner: owner, Name: name}
-	existed, err := adapter.Engine.Get(&pricing)
+	existed, err := ormer.Engine.Get(&pricing)
 	if err != nil {
-		return &pricing, err
+		return nil, err
 	}
 	if existed {
 		return &pricing, nil
@@ -88,6 +101,20 @@ func GetPricing(id string) (*Pricing, error) {
 	return getPricing(owner, name)
 }
 
+func GetApplicationDefaultPricing(owner, appName string) (*Pricing, error) {
+	pricings := make([]*Pricing, 0, 1)
+	err := ormer.Engine.Asc("created_time").Find(&pricings, &Pricing{Owner: owner, Application: appName})
+	if err != nil {
+		return nil, err
+	}
+	for _, pricing := range pricings {
+		if pricing.IsEnabled {
+			return pricing, nil
+		}
+	}
+	return nil, nil
+}
+
 func UpdatePricing(id string, pricing *Pricing) (bool, error) {
 	owner, name := util.GetOwnerAndNameFromId(id)
 	if p, err := getPricing(owner, name); err != nil {
@@ -96,7 +123,7 @@ func UpdatePricing(id string, pricing *Pricing) (bool, error) {
 		return false, nil
 	}
 
-	affected, err := adapter.Engine.ID(core.PK{owner, name}).AllCols().Update(pricing)
+	affected, err := ormer.Engine.ID(core.PK{owner, name}).AllCols().Update(pricing)
 	if err != nil {
 		return false, err
 	}
@@ -105,7 +132,7 @@ func UpdatePricing(id string, pricing *Pricing) (bool, error) {
 }
 
 func AddPricing(pricing *Pricing) (bool, error) {
-	affected, err := adapter.Engine.Insert(pricing)
+	affected, err := ormer.Engine.Insert(pricing)
 	if err != nil {
 		return false, err
 	}
@@ -113,35 +140,28 @@ func AddPricing(pricing *Pricing) (bool, error) {
 }
 
 func DeletePricing(pricing *Pricing) (bool, error) {
-	affected, err := adapter.Engine.ID(core.PK{pricing.Owner, pricing.Name}).Delete(pricing)
+	affected, err := ormer.Engine.ID(core.PK{pricing.Owner, pricing.Name}).Delete(pricing)
 	if err != nil {
 		return false, err
 	}
 	return affected != 0, nil
 }
 
-func (pricing *Pricing) GetId() string {
-	return fmt.Sprintf("%s/%s", pricing.Owner, pricing.Name)
-}
-
-func (pricing *Pricing) HasPlan(owner string, plan string) (bool, error) {
-	selectedPlan, err := GetPlan(fmt.Sprintf("%s/%s", owner, plan))
-	if err != nil {
-		return false, err
-	}
-
-	if selectedPlan == nil {
-		return false, nil
-	}
-
-	result := false
-
-	for _, pricingPlan := range pricing.Plans {
-		if strings.Contains(pricingPlan, selectedPlan.Name) {
-			result = true
-			break
+func CheckPricingAndPlan(owner, pricingName, planName string) error {
+	pricingId := util.GetId(owner, pricingName)
+	pricing, err := GetPricing(pricingId)
+	if pricing == nil || err != nil {
+		if pricing == nil && err == nil {
+			err = fmt.Errorf("pricing: %s does not exist", pricingName)
 		}
+		return err
 	}
-
-	return result, nil
+	ok, err := pricing.HasPlan(planName)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return fmt.Errorf("pricing: %s does not have plan: %s", pricingName, planName)
+	}
+	return nil
 }

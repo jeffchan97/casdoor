@@ -48,14 +48,11 @@ func (c *ApiController) GetApplications() {
 		} else {
 			applications, err = object.GetOrganizationApplications(owner, organization)
 		}
-
 		if err != nil {
 			c.ResponseError(err.Error())
 			return
 		}
-
-		c.Data["json"] = object.GetMaskedApplications(applications, userId)
-		c.ServeJSON()
+		c.ResponseOk(object.GetMaskedApplications(applications, userId))
 	} else {
 		limit := util.ParseInt(limit)
 		count, err := object.GetApplicationCount(owner, field, value)
@@ -65,13 +62,13 @@ func (c *ApiController) GetApplications() {
 		}
 
 		paginator := pagination.SetPaginator(c.Ctx, limit, count)
-		app, err := object.GetPaginationApplications(owner, paginator.Offset(), limit, field, value, sortField, sortOrder)
+		application, err := object.GetPaginationApplications(owner, paginator.Offset(), limit, field, value, sortField, sortOrder)
 		if err != nil {
 			c.ResponseError(err.Error())
 			return
 		}
 
-		applications := object.GetMaskedApplications(app, userId)
+		applications := object.GetMaskedApplications(application, userId)
 		c.ResponseOk(applications, paginator.Nums())
 	}
 }
@@ -86,14 +83,34 @@ func (c *ApiController) GetApplications() {
 func (c *ApiController) GetApplication() {
 	userId := c.GetSessionUsername()
 	id := c.Input().Get("id")
-	app, err := object.GetApplication(id)
+
+	application, err := object.GetApplication(id)
 	if err != nil {
 		c.ResponseError(err.Error())
 		return
 	}
 
-	c.Data["json"] = object.GetMaskedApplication(app, userId)
-	c.ServeJSON()
+	if c.Input().Get("withKey") != "" && application != nil && application.Cert != "" {
+		cert, err := object.GetCert(util.GetId(application.Owner, application.Cert))
+		if err != nil {
+			c.ResponseError(err.Error())
+			return
+		}
+
+		if cert == nil {
+			cert, err = object.GetCert(util.GetId(application.Organization, application.Cert))
+			if err != nil {
+				c.ResponseError(err.Error())
+				return
+			}
+		}
+
+		if cert != nil {
+			application.CertPublicKey = cert.Certificate
+		}
+	}
+
+	c.ResponseOk(object.GetMaskedApplication(application, userId))
 }
 
 // GetUserApplication
@@ -106,25 +123,24 @@ func (c *ApiController) GetApplication() {
 func (c *ApiController) GetUserApplication() {
 	userId := c.GetSessionUsername()
 	id := c.Input().Get("id")
+
 	user, err := object.GetUser(id)
 	if err != nil {
 		c.ResponseError(err.Error())
 		return
 	}
-
 	if user == nil {
 		c.ResponseError(fmt.Sprintf(c.T("general:The user: %s doesn't exist"), id))
 		return
 	}
 
-	app, err := object.GetApplicationByUser(user)
+	application, err := object.GetApplicationByUser(user)
 	if err != nil {
 		c.ResponseError(err.Error())
 		return
 	}
 
-	c.Data["json"] = object.GetMaskedApplication(app, userId)
-	c.ServeJSON()
+	c.ResponseOk(object.GetMaskedApplication(application, userId))
 }
 
 // GetOrganizationApplications
@@ -157,8 +173,7 @@ func (c *ApiController) GetOrganizationApplications() {
 			return
 		}
 
-		c.Data["json"] = object.GetMaskedApplications(applications, userId)
-		c.ServeJSON()
+		c.ResponseOk(object.GetMaskedApplications(applications, userId))
 	} else {
 		limit := util.ParseInt(limit)
 
@@ -169,13 +184,13 @@ func (c *ApiController) GetOrganizationApplications() {
 		}
 
 		paginator := pagination.SetPaginator(c.Ctx, limit, count)
-		app, err := object.GetPaginationOrganizationApplications(owner, organization, paginator.Offset(), limit, field, value, sortField, sortOrder)
+		application, err := object.GetPaginationOrganizationApplications(owner, organization, paginator.Offset(), limit, field, value, sortField, sortOrder)
 		if err != nil {
 			c.ResponseError(err.Error())
 			return
 		}
 
-		applications := object.GetMaskedApplications(app, userId)
+		applications := object.GetMaskedApplications(application, userId)
 		c.ResponseOk(applications, paginator.Nums())
 	}
 }

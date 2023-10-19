@@ -31,13 +31,13 @@ import (
 	"github.com/RobotsAndPencils/go-saml"
 	"github.com/beevik/etree"
 	"github.com/golang-jwt/jwt/v4"
+	"github.com/google/uuid"
 	dsig "github.com/russellhaering/goxmldsig"
-	uuid "github.com/satori/go.uuid"
 )
 
 // NewSamlResponse
 // returns a saml2 response
-func NewSamlResponse(user *User, host string, certificate string, destination string, iss string, requestId string, redirectUri []string) (*etree.Element, error) {
+func NewSamlResponse(application *Application, user *User, host string, certificate string, destination string, iss string, requestId string, redirectUri []string) (*etree.Element, error) {
 	samlResponse := &etree.Element{
 		Space: "samlp",
 		Tag:   "Response",
@@ -46,7 +46,7 @@ func NewSamlResponse(user *User, host string, certificate string, destination st
 	expireTime := time.Now().UTC().Add(time.Hour * 24).Format(time.RFC3339)
 	samlResponse.CreateAttr("xmlns:samlp", "urn:oasis:names:tc:SAML:2.0:protocol")
 	samlResponse.CreateAttr("xmlns:saml", "urn:oasis:names:tc:SAML:2.0:assertion")
-	arId := uuid.NewV4()
+	arId := uuid.New()
 
 	samlResponse.CreateAttr("ID", fmt.Sprintf("_%s", arId))
 	samlResponse.CreateAttr("Version", "2.0")
@@ -60,7 +60,7 @@ func NewSamlResponse(user *User, host string, certificate string, destination st
 	assertion := samlResponse.CreateElement("saml:Assertion")
 	assertion.CreateAttr("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance")
 	assertion.CreateAttr("xmlns:xs", "http://www.w3.org/2001/XMLSchema")
-	assertion.CreateAttr("ID", fmt.Sprintf("_%s", uuid.NewV4()))
+	assertion.CreateAttr("ID", fmt.Sprintf("_%s", uuid.New()))
 	assertion.CreateAttr("Version", "2.0")
 	assertion.CreateAttr("IssueInstant", now)
 	assertion.CreateElement("saml:Issuer").SetText(host)
@@ -82,7 +82,7 @@ func NewSamlResponse(user *User, host string, certificate string, destination st
 	}
 	authnStatement := assertion.CreateElement("saml:AuthnStatement")
 	authnStatement.CreateAttr("AuthnInstant", now)
-	authnStatement.CreateAttr("SessionIndex", fmt.Sprintf("_%s", uuid.NewV4()))
+	authnStatement.CreateAttr("SessionIndex", fmt.Sprintf("_%s", uuid.New()))
 	authnStatement.CreateAttr("SessionNotOnOrAfter", expireTime)
 	authnStatement.CreateElement("saml:AuthnContext").CreateElement("saml:AuthnContextClassRef").SetText("urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport")
 
@@ -102,6 +102,13 @@ func NewSamlResponse(user *User, host string, certificate string, destination st
 	displayName.CreateAttr("Name", "DisplayName")
 	displayName.CreateAttr("NameFormat", "urn:oasis:names:tc:SAML:2.0:attrname-format:basic")
 	displayName.CreateElement("saml:AttributeValue").CreateAttr("xsi:type", "xs:string").Element().SetText(user.DisplayName)
+
+	for _, item := range application.SamlAttributes {
+		role := attributes.CreateElement("saml:Attribute")
+		role.CreateAttr("Name", item.Name)
+		role.CreateAttr("NameFormat", item.NameFormat)
+		role.CreateElement("saml:AttributeValue").CreateAttr("xsi:type", "xs:string").Element().SetText(item.Value)
+	}
 
 	roles := attributes.CreateElement("saml:Attribute")
 	roles.CreateAttr("Name", "Roles")
@@ -184,10 +191,11 @@ type SingleSignOnService struct {
 
 type Attribute struct {
 	XMLName      xml.Name
-	Name         string `xml:"Name,attr"`
-	NameFormat   string `xml:"NameFormat,attr"`
-	FriendlyName string `xml:"FriendlyName,attr"`
-	Xmlns        string `xml:"xmlns,attr"`
+	Name         string   `xml:"Name,attr"`
+	NameFormat   string   `xml:"NameFormat,attr"`
+	FriendlyName string   `xml:"FriendlyName,attr"`
+	Xmlns        string   `xml:"xmlns,attr"`
+	Values       []string `xml:"AttributeValue"`
 }
 
 func GetSamlMeta(application *Application, host string) (*IdpEntityDescriptor, error) {
@@ -198,6 +206,10 @@ func GetSamlMeta(application *Application, host string) (*IdpEntityDescriptor, e
 
 	if cert == nil {
 		return nil, errors.New("please set a cert for the application first")
+	}
+
+	if cert.Certificate == "" {
+		return nil, fmt.Errorf("the certificate field should not be empty for the cert: %v", cert)
 	}
 
 	block, _ := pem.Decode([]byte(cert.Certificate))
@@ -288,6 +300,10 @@ func GetSamlResponse(application *Application, user *User, samlRequest string, h
 		return "", "", "", err
 	}
 
+	if cert.Certificate == "" {
+		return "", "", "", fmt.Errorf("the certificate field should not be empty for the cert: %v", cert)
+	}
+
 	block, _ := pem.Decode([]byte(cert.Certificate))
 	certificate := base64.StdEncoding.EncodeToString(block.Bytes)
 
@@ -301,7 +317,7 @@ func GetSamlResponse(application *Application, user *User, samlRequest string, h
 
 	_, originBackend := getOriginFromHost(host)
 	// build signedResponse
-	samlResponse, _ := NewSamlResponse(user, originBackend, certificate, authnRequest.AssertionConsumerServiceURL, authnRequest.Issuer.Url, authnRequest.ID, application.RedirectUris)
+	samlResponse, _ := NewSamlResponse(application, user, originBackend, certificate, authnRequest.AssertionConsumerServiceURL, authnRequest.Issuer.Url, authnRequest.ID, application.RedirectUris)
 	randomKeyStore := &X509Key{
 		PrivateKey:      cert.PrivateKey,
 		X509Certificate: certificate,
@@ -355,7 +371,7 @@ func NewSamlResponse11(user *User, requestID string, host string) *etree.Element
 	samlResponse.CreateAttr("MajorVersion", "1")
 	samlResponse.CreateAttr("MinorVersion", "1")
 
-	responseID := uuid.NewV4()
+	responseID := uuid.New()
 	samlResponse.CreateAttr("ResponseID", fmt.Sprintf("_%s", responseID))
 	samlResponse.CreateAttr("InResponseTo", requestID)
 
@@ -371,7 +387,7 @@ func NewSamlResponse11(user *User, requestID string, host string) *etree.Element
 	assertion.CreateAttr("xmlns:saml", "urn:oasis:names:tc:SAML:1.0:assertion")
 	assertion.CreateAttr("MajorVersion", "1")
 	assertion.CreateAttr("MinorVersion", "1")
-	assertion.CreateAttr("AssertionID", uuid.NewV4().String())
+	assertion.CreateAttr("AssertionID", uuid.New().String())
 	assertion.CreateAttr("Issuer", host)
 	assertion.CreateAttr("IssueInstant", now)
 

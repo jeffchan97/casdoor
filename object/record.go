@@ -21,6 +21,7 @@ import (
 	"github.com/beego/beego/context"
 	"github.com/casdoor/casdoor/conf"
 	"github.com/casdoor/casdoor/util"
+	"github.com/casvisor/casvisor-go-sdk/casvisorsdk"
 )
 
 var logPostOnly bool
@@ -30,26 +31,10 @@ func init() {
 }
 
 type Record struct {
-	Id int `xorm:"int notnull pk autoincr" json:"id"`
-
-	Owner       string `xorm:"varchar(100) index" json:"owner"`
-	Name        string `xorm:"varchar(100) index" json:"name"`
-	CreatedTime string `xorm:"varchar(100)" json:"createdTime"`
-
-	Organization string `xorm:"varchar(100)" json:"organization"`
-	ClientIp     string `xorm:"varchar(100)" json:"clientIp"`
-	User         string `xorm:"varchar(100)" json:"user"`
-	Method       string `xorm:"varchar(100)" json:"method"`
-	RequestUri   string `xorm:"varchar(1000)" json:"requestUri"`
-	Action       string `xorm:"varchar(1000)" json:"action"`
-
-	Object       string `xorm:"-" json:"object"`
-	ExtendedUser *User  `xorm:"-" json:"extendedUser"`
-
-	IsTriggered bool `json:"isTriggered"`
+	casvisorsdk.Record
 }
 
-func NewRecord(ctx *context.Context) *Record {
+func NewRecord(ctx *context.Context) *casvisorsdk.Record {
 	ip := strings.Replace(util.GetIPFromRequest(ctx.Request), ": ", "", -1)
 	action := strings.Replace(ctx.Request.URL.Path, "/api/", "", -1)
 	requestUri := util.FilterQuery(ctx.Request.RequestURI, []string{"accessToken"})
@@ -62,7 +47,7 @@ func NewRecord(ctx *context.Context) *Record {
 		object = string(ctx.Input.RequestBody)
 	}
 
-	record := Record{
+	record := casvisorsdk.Record{
 		Name:        util.GenerateId(),
 		CreatedTime: util.GetCurrentTime(),
 		ClientIp:    ip,
@@ -76,7 +61,7 @@ func NewRecord(ctx *context.Context) *Record {
 	return &record
 }
 
-func AddRecord(record *Record) bool {
+func AddRecord(record *casvisorsdk.Record) bool {
 	if logPostOnly {
 		if record.Method == "GET" {
 			return false
@@ -96,56 +81,20 @@ func AddRecord(record *Record) bool {
 		fmt.Println(errWebhook)
 	}
 
-	affected, err := adapter.Engine.Insert(record)
-	if err != nil {
-		panic(err)
+	if casvisorsdk.GetClient() == nil {
+		return false
 	}
 
-	return affected != 0
-}
-
-func GetRecordCount(field, value string, filterRecord *Record) (int64, error) {
-	session := GetSession("", -1, -1, field, value, "", "")
-	return session.Count(filterRecord)
-}
-
-func GetRecords() ([]*Record, error) {
-	records := []*Record{}
-	err := adapter.Engine.Desc("id").Find(&records)
+	affected, err := casvisorsdk.AddRecord(record)
 	if err != nil {
-		return records, err
+		fmt.Printf("AddRecord() error: %s", err.Error())
 	}
 
-	return records, nil
+	return affected
 }
 
-func GetPaginationRecords(offset, limit int, field, value, sortField, sortOrder string, filterRecord *Record) ([]*Record, error) {
-	records := []*Record{}
-	session := GetSession("", offset, limit, field, value, sortField, sortOrder)
-	err := session.Find(&records, filterRecord)
-	if err != nil {
-		return records, err
-	}
-
-	return records, nil
-}
-
-func GetRecordsByField(record *Record) ([]*Record, error) {
-	records := []*Record{}
-	err := adapter.Engine.Find(&records, record)
-	if err != nil {
-		return records, err
-	}
-
-	return records, nil
-}
-
-func SendWebhooks(record *Record) error {
-	webhooks, err := getWebhooksByOrganization(record.Organization)
-	if err != nil {
-		return err
-	}
-
+func getFilteredWebhooks(webhooks []*Webhook, action string) []*Webhook {
+	res := []*Webhook{}
 	for _, webhook := range webhooks {
 		if !webhook.IsEnabled {
 			continue
@@ -153,28 +102,56 @@ func SendWebhooks(record *Record) error {
 
 		matched := false
 		for _, event := range webhook.Events {
-			if record.Action == event {
+			if action == event {
 				matched = true
 				break
 			}
 		}
 
 		if matched {
-			if webhook.IsUserExtended {
-				user, err := GetMaskedUser(getUser(record.Organization, record.User))
-				if err != nil {
-					return err
-				}
+			res = append(res, webhook)
+		}
+	}
+	return res
+}
 
-				record.ExtendedUser = user
-			}
+func SendWebhooks(record *casvisorsdk.Record) error {
+	webhooks, err := getWebhooksByOrganization(record.Organization)
+	if err != nil {
+		return err
+	}
 
-			err := sendWebhook(webhook, record)
+	errs := []error{}
+	webhooks = getFilteredWebhooks(webhooks, record.Action)
+	for _, webhook := range webhooks {
+		var user *User
+		if webhook.IsUserExtended {
+			user, err = getUser(record.Organization, record.User)
 			if err != nil {
-				return err
+				errs = append(errs, err)
+				continue
 			}
+
+			user, err = GetMaskedUser(user, false, err)
+			if err != nil {
+				errs = append(errs, err)
+				continue
+			}
+		}
+
+		err = sendWebhook(webhook, record, user)
+		if err != nil {
+			errs = append(errs, err)
+			continue
 		}
 	}
 
+	if len(errs) > 0 {
+		errStrings := []string{}
+		for _, err := range errs {
+			errStrings = append(errStrings, err.Error())
+		}
+		return fmt.Errorf(strings.Join(errStrings, " | "))
+	}
 	return nil
 }

@@ -46,8 +46,7 @@ func (c *ApiController) GetProducts() {
 			return
 		}
 
-		c.Data["json"] = products
-		c.ServeJSON()
+		c.ResponseOk(products)
 	} else {
 		limit := util.ParseInt(limit)
 		count, err := object.GetProductCount(owner, field, value)
@@ -89,8 +88,7 @@ func (c *ApiController) GetProduct() {
 		return
 	}
 
-	c.Data["json"] = product
-	c.ServeJSON()
+	c.ResponseOk(product)
 }
 
 // UpdateProduct
@@ -163,10 +161,17 @@ func (c *ApiController) DeleteProduct() {
 // @router /buy-product [post]
 func (c *ApiController) BuyProduct() {
 	id := c.Input().Get("id")
-	providerName := c.Input().Get("providerName")
 	host := c.Ctx.Request.Host
-
-	userId := c.GetSessionUsername()
+	providerName := c.Input().Get("providerName")
+	// buy `pricingName/planName` for `paidUserName`
+	pricingName := c.Input().Get("pricingName")
+	planName := c.Input().Get("planName")
+	paidUserName := c.Input().Get("userName")
+	owner, _ := util.GetOwnerAndNameFromId(id)
+	userId := util.GetId(owner, paidUserName)
+	if paidUserName == "" {
+		userId = c.GetSessionUsername()
+	}
 	if userId == "" {
 		c.ResponseError(c.T("general:Please login first"))
 		return
@@ -177,17 +182,16 @@ func (c *ApiController) BuyProduct() {
 		c.ResponseError(err.Error())
 		return
 	}
-
 	if user == nil {
 		c.ResponseError(fmt.Sprintf(c.T("general:The user: %s doesn't exist"), userId))
 		return
 	}
 
-	payUrl, orderId, err := object.BuyProduct(id, providerName, user, host)
+	payment, err := object.BuyProduct(id, user, providerName, pricingName, planName, host)
 	if err != nil {
 		c.ResponseError(err.Error())
 		return
 	}
 
-	c.ResponseOk(payUrl, orderId)
+	c.ResponseOk(payment)
 }

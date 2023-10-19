@@ -58,7 +58,7 @@ func GetGroupCount(owner, field, value string) (int64, error) {
 
 func GetGroups(owner string) ([]*Group, error) {
 	groups := []*Group{}
-	err := adapter.Engine.Desc("created_time").Find(&groups, &Group{Owner: owner})
+	err := ormer.Engine.Desc("created_time").Find(&groups, &Group{Owner: owner})
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +83,7 @@ func getGroup(owner string, name string) (*Group, error) {
 	}
 
 	group := Group{Owner: owner, Name: name}
-	existed, err := adapter.Engine.Get(&group)
+	existed, err := ormer.Engine.Get(&group)
 	if err != nil {
 		return nil, err
 	}
@@ -107,6 +107,11 @@ func UpdateGroup(id string, group *Group) (bool, error) {
 		return false, err
 	}
 
+	err = checkGroupName(group.Name)
+	if err != nil {
+		return false, err
+	}
+
 	if name != group.Name {
 		err := GroupChangeTrigger(name, group.Name)
 		if err != nil {
@@ -114,7 +119,7 @@ func UpdateGroup(id string, group *Group) (bool, error) {
 		}
 	}
 
-	affected, err := adapter.Engine.ID(core.PK{owner, name}).AllCols().Update(group)
+	affected, err := ormer.Engine.ID(core.PK{owner, name}).AllCols().Update(group)
 	if err != nil {
 		return false, err
 	}
@@ -123,7 +128,12 @@ func UpdateGroup(id string, group *Group) (bool, error) {
 }
 
 func AddGroup(group *Group) (bool, error) {
-	affected, err := adapter.Engine.Insert(group)
+	err := checkGroupName(group.Name)
+	if err != nil {
+		return false, err
+	}
+
+	affected, err := ormer.Engine.Insert(group)
 	if err != nil {
 		return false, err
 	}
@@ -135,7 +145,7 @@ func AddGroups(groups []*Group) (bool, error) {
 	if len(groups) == 0 {
 		return false, nil
 	}
-	affected, err := adapter.Engine.Insert(groups)
+	affected, err := ormer.Engine.Insert(groups)
 	if err != nil {
 		return false, err
 	}
@@ -143,29 +153,40 @@ func AddGroups(groups []*Group) (bool, error) {
 }
 
 func DeleteGroup(group *Group) (bool, error) {
-	_, err := adapter.Engine.Get(group)
+	_, err := ormer.Engine.Get(group)
 	if err != nil {
 		return false, err
 	}
 
-	if count, err := adapter.Engine.Where("parent_id = ?", group.Name).Count(&Group{}); err != nil {
+	if count, err := ormer.Engine.Where("parent_id = ?", group.Name).Count(&Group{}); err != nil {
 		return false, err
 	} else if count > 0 {
 		return false, errors.New("group has children group")
 	}
 
-	if count, err := GetGroupUserCount(group.Name, "", ""); err != nil {
+	if count, err := GetGroupUserCount(group.GetId(), "", ""); err != nil {
 		return false, err
 	} else if count > 0 {
 		return false, errors.New("group has users")
 	}
 
-	affected, err := adapter.Engine.ID(core.PK{group.Owner, group.Name}).Delete(&Group{})
+	affected, err := ormer.Engine.ID(core.PK{group.Owner, group.Name}).Delete(&Group{})
 	if err != nil {
 		return false, err
 	}
 
 	return affected != 0, nil
+}
+
+func checkGroupName(name string) error {
+	exist, err := ormer.Engine.Exist(&Organization{Owner: "admin", Name: name})
+	if err != nil {
+		return err
+	}
+	if exist {
+		return errors.New("group name can't be same as the organization name")
+	}
+	return nil
 }
 
 func (group *Group) GetId() string {
@@ -193,46 +214,40 @@ func ConvertToTreeData(groups []*Group, parentId string) []*Group {
 	return treeData
 }
 
-func RemoveUserFromGroup(owner, name, groupName string) (bool, error) {
-	user, err := getUser(owner, name)
+func GetGroupUserCount(groupId string, field, value string) (int64, error) {
+	owner, _ := util.GetOwnerAndNameFromId(groupId)
+	names, err := userEnforcer.GetUserNamesByGroupName(groupId)
 	if err != nil {
-		return false, err
-	}
-	if user == nil {
-		return false, errors.New("user not exist")
+		return 0, err
 	}
 
-	user.Groups = util.DeleteVal(user.Groups, groupName)
-	affected, err := updateUser(user.GetId(), user, []string{"groups"})
-	if err != nil {
-		return false, err
-	}
-	return affected != 0, err
-}
-
-func GetGroupUserCount(groupName string, field, value string) (int64, error) {
 	if field == "" && value == "" {
-		return adapter.Engine.Where(builder.Like{"`groups`", groupName}).
-			Count(&User{})
+		return int64(len(names)), nil
 	} else {
-		return adapter.Engine.Table("user").
-			Where(builder.Like{"`groups`", groupName}).
-			And(fmt.Sprintf("user.%s LIKE ?", util.CamelToSnakeCase(field)), "%"+value+"%").
+		return ormer.Engine.Table("user").
+			Where("owner = ?", owner).In("name", names).
+			And(fmt.Sprintf("user.%s like ?", util.CamelToSnakeCase(field)), "%"+value+"%").
 			Count()
 	}
 }
 
-func GetPaginationGroupUsers(groupName string, offset, limit int, field, value, sortField, sortOrder string) ([]*User, error) {
+func GetPaginationGroupUsers(groupId string, offset, limit int, field, value, sortField, sortOrder string) ([]*User, error) {
 	users := []*User{}
-	session := adapter.Engine.Table("user").
-		Where(builder.Like{"`groups`", groupName})
+	owner, _ := util.GetOwnerAndNameFromId(groupId)
+	names, err := userEnforcer.GetUserNamesByGroupName(groupId)
+	if err != nil {
+		return nil, err
+	}
+
+	session := ormer.Engine.Table("user").
+		Where("owner = ?", owner).In("name", names)
 
 	if offset != -1 && limit != -1 {
 		session.Limit(limit, offset)
 	}
 
 	if field != "" && value != "" {
-		session = session.And(fmt.Sprintf("user.%s LIKE ?", util.CamelToSnakeCase(field)), "%"+value+"%")
+		session = session.And(fmt.Sprintf("user.%s like ?", util.CamelToSnakeCase(field)), "%"+value+"%")
 	}
 
 	if sortField == "" || sortOrder == "" {
@@ -244,7 +259,7 @@ func GetPaginationGroupUsers(groupName string, offset, limit int, field, value, 
 		session = session.Desc(fmt.Sprintf("user.%s", util.SnakeString(sortField)))
 	}
 
-	err := session.Find(&users)
+	err = session.Find(&users)
 	if err != nil {
 		return nil, err
 	}
@@ -252,20 +267,20 @@ func GetPaginationGroupUsers(groupName string, offset, limit int, field, value, 
 	return users, nil
 }
 
-func GetGroupUsers(groupName string) ([]*User, error) {
+func GetGroupUsers(groupId string) ([]*User, error) {
 	users := []*User{}
-	err := adapter.Engine.Table("user").
-		Where(builder.Like{"`groups`", groupName}).
-		Find(&users)
+	owner, _ := util.GetOwnerAndNameFromId(groupId)
+	names, err := userEnforcer.GetUserNamesByGroupName(groupId)
+
+	err = ormer.Engine.Where("owner = ?", owner).In("name", names).Find(&users)
 	if err != nil {
 		return nil, err
 	}
-
 	return users, nil
 }
 
 func GroupChangeTrigger(oldName, newName string) error {
-	session := adapter.Engine.NewSession()
+	session := ormer.Engine.NewSession()
 	defer session.Close()
 	err := session.Begin()
 	if err != nil {

@@ -36,7 +36,7 @@ type Provider struct {
 	Type              string            `xorm:"varchar(100)" json:"type"`
 	SubType           string            `xorm:"varchar(100)" json:"subType"`
 	Method            string            `xorm:"varchar(100)" json:"method"`
-	ClientId          string            `xorm:"varchar(100)" json:"clientId"`
+	ClientId          string            `xorm:"varchar(200)" json:"clientId"`
 	ClientSecret      string            `xorm:"varchar(2000)" json:"clientSecret"`
 	ClientId2         string            `xorm:"varchar(100)" json:"clientId2"`
 	ClientSecret2     string            `xorm:"varchar(100)" json:"clientSecret2"`
@@ -119,7 +119,7 @@ func GetGlobalProviderCount(field, value string) (int64, error) {
 
 func GetProviders(owner string) ([]*Provider, error) {
 	providers := []*Provider{}
-	err := adapter.Engine.Where("owner = ? or owner = ? ", "admin", owner).Desc("created_time").Find(&providers, &Provider{})
+	err := ormer.Engine.Where("owner = ? or owner = ? ", "admin", owner).Desc("created_time").Find(&providers, &Provider{})
 	if err != nil {
 		return providers, err
 	}
@@ -129,7 +129,7 @@ func GetProviders(owner string) ([]*Provider, error) {
 
 func GetGlobalProviders() ([]*Provider, error) {
 	providers := []*Provider{}
-	err := adapter.Engine.Desc("created_time").Find(&providers)
+	err := ormer.Engine.Desc("created_time").Find(&providers)
 	if err != nil {
 		return providers, err
 	}
@@ -165,7 +165,7 @@ func getProvider(owner string, name string) (*Provider, error) {
 	}
 
 	provider := Provider{Name: name}
-	existed, err := adapter.Engine.Get(&provider)
+	existed, err := ormer.Engine.Get(&provider)
 	if err != nil {
 		return &provider, err
 	}
@@ -180,20 +180,6 @@ func getProvider(owner string, name string) (*Provider, error) {
 func GetProvider(id string) (*Provider, error) {
 	owner, name := util.GetOwnerAndNameFromId(id)
 	return getProvider(owner, name)
-}
-
-func getDefaultAiProvider() (*Provider, error) {
-	provider := Provider{Owner: "admin", Category: "AI"}
-	existed, err := adapter.Engine.Get(&provider)
-	if err != nil {
-		return &provider, err
-	}
-
-	if !existed {
-		return nil, nil
-	}
-
-	return &provider, nil
 }
 
 func GetWechatMiniProgramProvider(application *Application) *Provider {
@@ -217,11 +203,11 @@ func UpdateProvider(id string, provider *Provider) (bool, error) {
 	if name != provider.Name {
 		err := providerChangeTrigger(name, provider.Name)
 		if err != nil {
-			return false, nil
+			return false, err
 		}
 	}
 
-	session := adapter.Engine.ID(core.PK{owner, name}).AllCols()
+	session := ormer.Engine.ID(core.PK{owner, name}).AllCols()
 	if provider.ClientSecret == "***" {
 		session = session.Omit("client_secret")
 	}
@@ -229,7 +215,7 @@ func UpdateProvider(id string, provider *Provider) (bool, error) {
 		session = session.Omit("client_secret2")
 	}
 
-	if provider.Type != "Keycloak" {
+	if provider.Type == "Tencent Cloud COS" {
 		provider.Endpoint = util.GetEndPoint(provider.Endpoint)
 		provider.IntranetEndpoint = util.GetEndPoint(provider.IntranetEndpoint)
 	}
@@ -243,12 +229,12 @@ func UpdateProvider(id string, provider *Provider) (bool, error) {
 }
 
 func AddProvider(provider *Provider) (bool, error) {
-	if provider.Type != "Keycloak" {
+	if provider.Type == "Tencent Cloud COS" {
 		provider.Endpoint = util.GetEndPoint(provider.Endpoint)
 		provider.IntranetEndpoint = util.GetEndPoint(provider.IntranetEndpoint)
 	}
 
-	affected, err := adapter.Engine.Insert(provider)
+	affected, err := ormer.Engine.Insert(provider)
 	if err != nil {
 		return false, err
 	}
@@ -257,7 +243,7 @@ func AddProvider(provider *Provider) (bool, error) {
 }
 
 func DeleteProvider(provider *Provider) (bool, error) {
-	affected, err := adapter.Engine.ID(core.PK{provider.Owner, provider.Name}).Delete(&Provider{})
+	affected, err := ormer.Engine.ID(core.PK{provider.Owner, provider.Name}).Delete(&Provider{})
 	if err != nil {
 		return false, err
 	}
@@ -265,29 +251,69 @@ func DeleteProvider(provider *Provider) (bool, error) {
 	return affected != 0, nil
 }
 
-func (p *Provider) getPaymentProvider() (pp.PaymentProvider, *Cert, error) {
+func GetPaymentProvider(p *Provider) (pp.PaymentProvider, error) {
 	cert := &Cert{}
 	if p.Cert != "" {
-		cert, err := getCert(p.Owner, p.Cert)
+		var err error
+		cert, err = GetCert(util.GetId(p.Owner, p.Cert))
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 
 		if cert == nil {
-			return nil, nil, fmt.Errorf("the cert: %s does not exist", p.Cert)
+			return nil, fmt.Errorf("the cert: %s does not exist", p.Cert)
 		}
 	}
-
-	pProvider, err := pp.GetPaymentProvider(p.Type, p.ClientId, p.ClientSecret, p.Host, cert.Certificate, cert.PrivateKey, cert.AuthorityPublicKey, cert.AuthorityRootPublicKey, p.ClientId2)
-	if err != nil {
-		return nil, cert, err
+	typ := p.Type
+	if typ == "Dummy" {
+		pp, err := pp.NewDummyPaymentProvider()
+		if err != nil {
+			return nil, err
+		}
+		return pp, nil
+	} else if typ == "Alipay" {
+		if p.Metadata != "" {
+			// alipay provider store rootCert's name in metadata
+			rootCert, err := GetCert(util.GetId(p.Owner, p.Metadata))
+			if err != nil {
+				return nil, err
+			}
+			if rootCert == nil {
+				return nil, fmt.Errorf("the cert: %s does not exist", p.Metadata)
+			}
+			pp, err := pp.NewAlipayPaymentProvider(p.ClientId, cert.Certificate, cert.PrivateKey, rootCert.Certificate, rootCert.PrivateKey)
+			if err != nil {
+				return nil, err
+			}
+			return pp, nil
+		} else {
+			return nil, fmt.Errorf("the metadata of alipay provider is empty")
+		}
+	} else if typ == "GC" {
+		return pp.NewGcPaymentProvider(p.ClientId, p.ClientSecret, p.Host), nil
+	} else if typ == "WeChat Pay" {
+		pp, err := pp.NewWechatPaymentProvider(p.ClientId, p.ClientSecret, p.ClientId2, cert.Certificate, cert.PrivateKey)
+		if err != nil {
+			return nil, err
+		}
+		return pp, nil
+	} else if typ == "PayPal" {
+		pp, err := pp.NewPaypalPaymentProvider(p.ClientId, p.ClientSecret)
+		if err != nil {
+			return nil, err
+		}
+		return pp, nil
+	} else if typ == "Stripe" {
+		pp, err := pp.NewStripePaymentProvider(p.ClientId, p.ClientSecret)
+		if err != nil {
+			return nil, err
+		}
+		return pp, nil
+	} else {
+		return nil, fmt.Errorf("the payment provider type: %s is not supported", p.Type)
 	}
 
-	if pProvider == nil {
-		return nil, cert, fmt.Errorf("the payment provider type: %s is not supported", p.Type)
-	}
-
-	return pProvider, cert, nil
+	return nil, nil
 }
 
 func (p *Provider) GetId() string {
@@ -297,7 +323,7 @@ func (p *Provider) GetId() string {
 func GetCaptchaProviderByOwnerName(applicationId, lang string) (*Provider, error) {
 	owner, name := util.GetOwnerAndNameFromId(applicationId)
 	provider := Provider{Owner: owner, Name: name, Category: "Captcha"}
-	existed, err := adapter.Engine.Get(&provider)
+	existed, err := ormer.Engine.Get(&provider)
 	if err != nil {
 		return nil, err
 	}
@@ -333,7 +359,7 @@ func GetCaptchaProviderByApplication(applicationId, isCurrentProvider, lang stri
 }
 
 func providerChangeTrigger(oldName string, newName string) error {
-	session := adapter.Engine.NewSession()
+	session := ormer.Engine.NewSession()
 	defer session.Close()
 
 	err := session.Begin()
@@ -342,7 +368,7 @@ func providerChangeTrigger(oldName string, newName string) error {
 	}
 
 	var applications []*Application
-	err = adapter.Engine.Find(&applications)
+	err = ormer.Engine.Find(&applications)
 	if err != nil {
 		return err
 	}
@@ -389,6 +415,8 @@ func FromProviderToIdpInfo(ctx *context.Context, provider *Provider) *idp.Provid
 			providerInfo.ClientId = provider.ClientId2
 			providerInfo.ClientSecret = provider.ClientSecret2
 		}
+	} else if provider.Type == "AzureAD" {
+		providerInfo.HostUrl = provider.Domain
 	}
 
 	return providerInfo

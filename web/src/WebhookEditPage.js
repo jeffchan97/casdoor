@@ -79,7 +79,6 @@ const userTemplate = {
   "ranking": 10,
   "isOnline": false,
   "isAdmin": true,
-  "isGlobalAdmin": false,
   "isForbidden": false,
   "isDeleted": false,
   "signupApplication": "app-casnode",
@@ -122,14 +121,14 @@ class WebhookEditPage extends React.Component {
 
   getWebhook() {
     WebhookBackend.getWebhook("admin", this.state.webhookName)
-      .then((webhook) => {
-        if (webhook === null) {
+      .then((res) => {
+        if (res.data === null) {
           this.props.history.push("/404");
           return;
         }
 
         this.setState({
-          webhook: webhook,
+          webhook: res.data,
         });
       });
   }
@@ -138,7 +137,7 @@ class WebhookEditPage extends React.Component {
     OrganizationBackend.getOrganizations("admin")
       .then((res) => {
         this.setState({
-          organizations: (res.msg === undefined) ? res : [],
+          organizations: res.data || [],
         });
       });
   }
@@ -158,6 +157,17 @@ class WebhookEditPage extends React.Component {
     this.setState({
       webhook: webhook,
     });
+  }
+
+  getApiPaths() {
+    const objects = ["organization", "group", "user", "application", "provider", "resource", "cert", "role", "permission", "model", "adapter", "enforcer", "session", "record", "token", "product", "payment", "plan", "pricing", "subscription", "syncer", "webhook"];
+    const res = [];
+    objects.forEach(obj => {
+      ["add", "update", "delete"].forEach(action => {
+        res.push(`${action}-${obj}`);
+      });
+    });
+    return res;
   }
 
   renderWebhook() {
@@ -264,7 +274,7 @@ class WebhookEditPage extends React.Component {
               }} >
               {
                 (
-                  ["signup", "login", "logout", "add-user", "update-user", "delete-user", "add-organization", "update-organization", "delete-organization", "add-application", "update-application", "delete-application", "add-provider", "update-provider", "delete-provider", "update-subscription"].map((option, index) => {
+                  ["signup", "login", "logout"].concat(this.getApiPaths()).map((option, index) => {
                     return (
                       <Option key={option} value={option}>{option}</Option>
                     );
@@ -312,7 +322,7 @@ class WebhookEditPage extends React.Component {
     );
   }
 
-  submitWebhookEdit(willExist) {
+  submitWebhookEdit(exitAfterSave) {
     const webhook = Setting.deepCopy(this.state.webhook);
     WebhookBackend.updateWebhook(this.state.webhook.owner, this.state.webhookName, webhook)
       .then((res) => {
@@ -322,7 +332,7 @@ class WebhookEditPage extends React.Component {
             webhookName: this.state.webhook.name,
           });
 
-          if (willExist) {
+          if (exitAfterSave) {
             this.props.history.push("/webhooks");
           } else {
             this.props.history.push(`/webhooks/${this.state.webhook.name}`);

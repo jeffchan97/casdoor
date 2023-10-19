@@ -30,7 +30,7 @@ func GetUserByField(organizationName string, field string, value string) (*User,
 	}
 
 	user := User{Owner: organizationName}
-	existed, err := adapter.Engine.Where(fmt.Sprintf("%s=?", strings.ToLower(field)), value).Get(&user)
+	existed, err := ormer.Engine.Where(fmt.Sprintf("%s=?", strings.ToLower(field)), value).Get(&user)
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +95,7 @@ func SetUserField(user *User, field string, value string) (bool, error) {
 		bean[strings.ToLower(field)] = value
 	}
 
-	affected, err := adapter.Engine.Table(user).ID(core.PK{user.Owner, user.Name}).Update(bean)
+	affected, err := ormer.Engine.Table(user).ID(core.PK{user.Owner, user.Name}).Update(bean)
 	if err != nil {
 		return false, err
 	}
@@ -110,7 +110,7 @@ func SetUserField(user *User, field string, value string) (bool, error) {
 		return false, err
 	}
 
-	_, err = adapter.Engine.ID(core.PK{user.Owner, user.Name}).Cols("hash").Update(user)
+	_, err = ormer.Engine.ID(core.PK{user.Owner, user.Name}).Cols("hash").Update(user)
 	if err != nil {
 		return false, err
 	}
@@ -191,7 +191,7 @@ func ClearUserOAuthProperties(user *User, providerType string) (bool, error) {
 		}
 	}
 
-	affected, err := adapter.Engine.ID(core.PK{user.Owner, user.Name}).Cols("properties").Update(user)
+	affected, err := ormer.Engine.ID(core.PK{user.Owner, user.Name}).Cols("properties").Update(user)
 	if err != nil {
 		return false, err
 	}
@@ -310,16 +310,18 @@ func CheckPermissionForUpdateUser(oldUser, newUser *User, isAdmin bool, lang str
 		item := GetAccountItemByName("Is admin", organization)
 		itemsChanged = append(itemsChanged, item)
 	}
-	if oldUser.IsGlobalAdmin != newUser.IsGlobalAdmin {
-		item := GetAccountItemByName("Is global admin", organization)
-		itemsChanged = append(itemsChanged, item)
-	}
+
 	if oldUser.IsForbidden != newUser.IsForbidden {
 		item := GetAccountItemByName("Is forbidden", organization)
 		itemsChanged = append(itemsChanged, item)
 	}
 	if oldUser.IsDeleted != newUser.IsDeleted {
 		item := GetAccountItemByName("Is deleted", organization)
+		itemsChanged = append(itemsChanged, item)
+	}
+
+	if oldUser.Score != newUser.Score {
+		item := GetAccountItemByName("Score", organization)
 		itemsChanged = append(itemsChanged, item)
 	}
 
@@ -351,5 +353,5 @@ func (user *User) IsAdminUser() bool {
 		return false
 	}
 
-	return user.IsAdmin || user.IsGlobalAdmin
+	return user.IsAdmin || user.IsGlobalAdmin()
 }

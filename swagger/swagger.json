@@ -1,14 +1,18 @@
 {
     "swagger": "2.0",
     "info": {
-        "title": "Casdoor API",
-        "description": "Documentation of Casdoor API",
-        "version": "1.0.0",
+        "title": "Casdoor RESTful API",
+        "description": "Swagger Docs of Casdoor Backend API",
+        "version": "1.376.1",
         "contact": {
-            "email": "admin@casbin.org"
+            "email": "casbin@googlegroups.com"
         }
     },
     "basePath": "/",
+    "schemes": [
+        "https",
+        "http"
+    ],
     "paths": {
         "/.well-known/jwks": {
             "get": {
@@ -49,7 +53,7 @@
                     "Adapter API"
                 ],
                 "description": "add adapter",
-                "operationId": "ApiController.AddCasbinAdapter",
+                "operationId": "ApiController.AddAdapter",
                 "parameters": [
                     {
                         "in": "body",
@@ -127,29 +131,29 @@
                 }
             }
         },
-        "/api/add-chat": {
+        "/api/add-enforcer": {
             "post": {
                 "tags": [
-                    "Chat API"
+                    "Enforcer API"
                 ],
-                "description": "add chat",
-                "operationId": "ApiController.AddChat",
+                "description": "add enforcer",
+                "operationId": "ApiController.AddEnforcer",
                 "parameters": [
                     {
                         "in": "body",
-                        "name": "body",
-                        "description": "The details of the chat",
+                        "name": "enforcer",
+                        "description": "The enforcer object",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/object.Chat"
+                            "$ref": "#/definitions/object"
                         }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "The Response object",
+                        "description": "",
                         "schema": {
-                            "$ref": "#/definitions/controllers.Response"
+                            "$ref": "#/definitions/object"
                         }
                     }
                 }
@@ -188,24 +192,16 @@
                 "tags": [
                     "Account API"
                 ],
-                "operationId": "ApiController.AddLdap"
-            }
-        },
-        "/api/add-message": {
-            "post": {
-                "tags": [
-                    "Message API"
-                ],
-                "description": "add message",
-                "operationId": "ApiController.AddMessage",
+                "description": "add ldap",
+                "operationId": "ApiController.AddLdap",
                 "parameters": [
                     {
                         "in": "body",
                         "name": "body",
-                        "description": "The details of the message",
+                        "description": "The details of the ldap",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/object.Message"
+                            "$ref": "#/definitions/object.Ldap"
                         }
                     }
                 ],
@@ -947,7 +943,7 @@
                     "Adapter API"
                 ],
                 "description": "delete adapter",
-                "operationId": "ApiController.DeleteCasbinAdapter",
+                "operationId": "ApiController.DeleteAdapter",
                 "parameters": [
                     {
                         "in": "body",
@@ -1025,29 +1021,29 @@
                 }
             }
         },
-        "/api/delete-chat": {
+        "/api/delete-enforcer": {
             "post": {
                 "tags": [
-                    "Chat API"
+                    "Enforcer API"
                 ],
-                "description": "delete chat",
-                "operationId": "ApiController.DeleteChat",
+                "description": "delete enforcer",
+                "operationId": "ApiController.DeleteEnforcer",
                 "parameters": [
                     {
                         "in": "body",
                         "name": "body",
-                        "description": "The details of the chat",
+                        "description": "The enforcer object",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/object.Chat"
+                            "$ref": "#/definitions/object.Enforce"
                         }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "The Response object",
+                        "description": "",
                         "schema": {
-                            "$ref": "#/definitions/controllers.Response"
+                            "$ref": "#/definitions/object"
                         }
                     }
                 }
@@ -1086,24 +1082,16 @@
                 "tags": [
                     "Account API"
                 ],
-                "operationId": "ApiController.DeleteLdap"
-            }
-        },
-        "/api/delete-message": {
-            "post": {
-                "tags": [
-                    "Message API"
-                ],
-                "description": "delete message",
-                "operationId": "ApiController.DeleteMessage",
+                "description": "delete ldap",
+                "operationId": "ApiController.DeleteLdap",
                 "parameters": [
                     {
                         "in": "body",
                         "name": "body",
-                        "description": "The details of the message",
+                        "description": "The details of the ldap",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/object.Message"
+                            "$ref": "#/definitions/object.Ldap"
                         }
                     }
                 ],
@@ -1651,7 +1639,7 @@
                     "Adapter API"
                 ],
                 "description": "get adapter",
-                "operationId": "ApiController.GetCasbinAdapter",
+                "operationId": "ApiController.GetAdapter",
                 "parameters": [
                     {
                         "in": "query",
@@ -1677,7 +1665,7 @@
                     "Adapter API"
                 ],
                 "description": "get adapters",
-                "operationId": "ApiController.GetCasbinAdapters",
+                "operationId": "ApiController.GetAdapters",
                 "parameters": [
                     {
                         "in": "query",
@@ -1864,56 +1852,18 @@
                 }
             }
         },
-        "/api/get-chat": {
+        "/api/get-dashboard": {
             "get": {
                 "tags": [
-                    "Chat API"
+                    "GetDashboard API"
                 ],
-                "description": "get chat",
-                "operationId": "ApiController.GetChat",
-                "parameters": [
-                    {
-                        "in": "query",
-                        "name": "id",
-                        "description": "The id ( owner/name ) of the chat",
-                        "required": true,
-                        "type": "string"
-                    }
-                ],
+                "description": "get information of dashboard",
+                "operationId": "ApiController.GetDashboard",
                 "responses": {
                     "200": {
                         "description": "The Response object",
                         "schema": {
-                            "$ref": "#/definitions/object.Chat"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/get-chats": {
-            "get": {
-                "tags": [
-                    "Chat API"
-                ],
-                "description": "get chats",
-                "operationId": "ApiController.GetChats",
-                "parameters": [
-                    {
-                        "in": "query",
-                        "name": "owner",
-                        "description": "The owner of chats",
-                        "required": true,
-                        "type": "string"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "The Response object",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/object.Chat"
-                            }
+                            "$ref": "#/definitions/controllers.Response"
                         }
                     }
                 }
@@ -1973,6 +1923,61 @@
                         "description": "The Response object",
                         "schema": {
                             "$ref": "#/definitions/controllers.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/get-enforcer": {
+            "get": {
+                "tags": [
+                    "Enforcer API"
+                ],
+                "description": "get enforcer",
+                "operationId": "ApiController.GetEnforcer",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "id",
+                        "description": "The id ( owner/name )  of enforcer",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/object"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/get-enforcers": {
+            "get": {
+                "tags": [
+                    "Enforcer API"
+                ],
+                "description": "get enforcers",
+                "operationId": "ApiController.GetEnforcers",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "owner",
+                        "description": "The owner of enforcers",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/object.Enforcer"
+                            }
                         }
                     }
                 }
@@ -2098,7 +2103,25 @@
                 "tags": [
                     "Account API"
                 ],
-                "operationId": "ApiController.GetLdap"
+                "description": "get ldap",
+                "operationId": "ApiController.GetLdap",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "id",
+                        "description": "id",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The Response object",
+                        "schema": {
+                            "$ref": "#/definitions/object.Ldap"
+                        }
+                    }
+                }
             }
         },
         "/api/get-ldap-users": {
@@ -2106,7 +2129,16 @@
                 "tags": [
                     "Account API"
                 ],
-                "operationId": "ApiController.GetLdapser"
+                "description": "get ldap users",
+                "operationId": "ApiController.GetLdapser",
+                "responses": {
+                    "200": {
+                        "description": "The Response object",
+                        "schema": {
+                            "$ref": "#/definitions/LdapResp"
+                        }
+                    }
+                }
             }
         },
         "/api/get-ldaps": {
@@ -2114,74 +2146,13 @@
                 "tags": [
                     "Account API"
                 ],
-                "operationId": "ApiController.GetLdaps"
-            }
-        },
-        "/api/get-message": {
-            "get": {
-                "tags": [
-                    "Message API"
-                ],
-                "description": "get message",
-                "operationId": "ApiController.GetMessage",
-                "parameters": [
-                    {
-                        "in": "query",
-                        "name": "id",
-                        "description": "The id ( owner/name ) of the message",
-                        "required": true,
-                        "type": "string"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "The Response object",
-                        "schema": {
-                            "$ref": "#/definitions/object.Message"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/get-message-answer": {
-            "get": {
-                "tags": [
-                    "Message API"
-                ],
-                "description": "get message answer",
-                "operationId": "ApiController.GetMessageAnswer",
-                "parameters": [
-                    {
-                        "in": "query",
-                        "name": "id",
-                        "description": "The id ( owner/name ) of the message",
-                        "required": true,
-                        "type": "string"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "The Response object",
-                        "schema": {
-                            "$ref": "#/definitions/object.Message"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/get-messages": {
-            "get": {
-                "tags": [
-                    "Message API"
-                ],
-                "description": "get messages",
-                "operationId": "ApiController.GetMessages",
+                "description": "get ldaps",
+                "operationId": "ApiController.GetLdaps",
                 "parameters": [
                     {
                         "in": "query",
                         "name": "owner",
-                        "description": "The owner of messages",
-                        "required": true,
+                        "description": "owner",
                         "type": "string"
                     }
                 ],
@@ -2191,7 +2162,7 @@
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/object.Message"
+                                "$ref": "#/definitions/object.Ldap"
                             }
                         }
                     }
@@ -3484,7 +3455,8 @@
                         "name": "id",
                         "description": "The id ( owner/name ) of the webhook",
                         "required": true,
-                        "type": "string"
+                        "type": "string",
+                        "default": "built-in/admin"
                     }
                 ],
                 "responses": {
@@ -3510,7 +3482,8 @@
                         "name": "owner",
                         "description": "The owner of webhooks",
                         "required": true,
-                        "type": "string"
+                        "type": "string",
+                        "default": "built-in/admin"
                     }
                 ],
                 "responses": {
@@ -3523,7 +3496,12 @@
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "test_apiKey": []
+                    }
+                ]
             }
         },
         "/api/health": {
@@ -4139,7 +4117,25 @@
                 "tags": [
                     "Account API"
                 ],
-                "operationId": "ApiController.SyncLdapUsers"
+                "description": "sync ldap users",
+                "operationId": "ApiController.SyncLdapUsers",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "id",
+                        "description": "id",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The Response object",
+                        "schema": {
+                            "$ref": "#/definitions/LdapSyncResp"
+                        }
+                    }
+                }
             }
         },
         "/api/unlink": {
@@ -4155,7 +4151,7 @@
                     "Adapter API"
                 ],
                 "description": "update adapter",
-                "operationId": "ApiController.UpdateCasbinAdapter",
+                "operationId": "ApiController.UpdateAdapter",
                 "parameters": [
                     {
                         "in": "query",
@@ -4254,36 +4250,36 @@
                 }
             }
         },
-        "/api/update-chat": {
+        "/api/update-enforcer": {
             "post": {
                 "tags": [
-                    "Chat API"
+                    "Enforcer API"
                 ],
-                "description": "update chat",
-                "operationId": "ApiController.UpdateChat",
+                "description": "update enforcer",
+                "operationId": "ApiController.UpdateEnforcer",
                 "parameters": [
                     {
                         "in": "query",
                         "name": "id",
-                        "description": "The id ( owner/name ) of the chat",
+                        "description": "The id ( owner/name )  of enforcer",
                         "required": true,
                         "type": "string"
                     },
                     {
                         "in": "body",
-                        "name": "body",
-                        "description": "The details of the chat",
+                        "name": "enforcer",
+                        "description": "The enforcer object",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/object.Chat"
+                            "$ref": "#/definitions/object"
                         }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "The Response object",
+                        "description": "",
                         "schema": {
-                            "$ref": "#/definitions/controllers.Response"
+                            "$ref": "#/definitions/object"
                         }
                     }
                 }
@@ -4329,31 +4325,16 @@
                 "tags": [
                     "Account API"
                 ],
-                "operationId": "ApiController.UpdateLdap"
-            }
-        },
-        "/api/update-message": {
-            "post": {
-                "tags": [
-                    "Message API"
-                ],
-                "description": "update message",
-                "operationId": "ApiController.UpdateMessage",
+                "description": "update ldap",
+                "operationId": "ApiController.UpdateLdap",
                 "parameters": [
-                    {
-                        "in": "query",
-                        "name": "id",
-                        "description": "The id ( owner/name ) of the message",
-                        "required": true,
-                        "type": "string"
-                    },
                     {
                         "in": "body",
                         "name": "body",
-                        "description": "The details of the message",
+                        "description": "The details of the ldap",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/object.Message"
+                            "$ref": "#/definitions/object.Ldap"
                         }
                     }
                 ],
@@ -4899,7 +4880,8 @@
                         "name": "id",
                         "description": "The id ( owner/name ) of the webhook",
                         "required": true,
-                        "type": "string"
+                        "type": "string",
+                        "default": "built-in/admin"
                     },
                     {
                         "in": "body",
@@ -5148,12 +5130,32 @@
         }
     },
     "definitions": {
+        "1183.0xc000639290.false": {
+            "title": "false",
+            "type": "object"
+        },
+        "1217.0xc0006392c0.false": {
+            "title": "false",
+            "type": "object"
+        },
         "LaravelResponse": {
             "title": "LaravelResponse",
             "type": "object"
         },
+        "LdapResp": {
+            "title": "LdapResp",
+            "type": "object"
+        },
+        "LdapSyncResp": {
+            "title": "LdapSyncResp",
+            "type": "object"
+        },
         "Response": {
             "title": "Response",
+            "type": "object"
+        },
+        "casbin.Enforcer": {
+            "title": "Enforcer",
             "type": "object"
         },
         "controllers.AuthForm": {
@@ -5189,16 +5191,10 @@
             "type": "object",
             "properties": {
                 "data": {
-                    "additionalProperties": {
-                        "description": "support string, struct or []struct",
-                        "type": "string"
-                    }
+                    "$ref": "#/definitions/1183.0xc000639290.false"
                 },
                 "data2": {
-                    "additionalProperties": {
-                        "description": "support string, struct or []struct",
-                        "type": "string"
-                    }
+                    "$ref": "#/definitions/1217.0xc0006392c0.false"
                 },
                 "msg": {
                     "type": "string"
@@ -5236,8 +5232,16 @@
             "title": "JSONWebKey",
             "type": "object"
         },
+        "model.Model": {
+            "title": "Model",
+            "type": "object"
+        },
         "object": {
             "title": "object",
+            "type": "object"
+        },
+        "object.\u0026{197049 0xc000a2cd50 false}": {
+            "title": "\u0026{197049 0xc000a2cd50 false}",
             "type": "object"
         },
         "object.AccountItem": {
@@ -5262,16 +5266,41 @@
             "title": "Adapter",
             "type": "object",
             "properties": {
-                "Engine": {
-                    "$ref": "#/definitions/xorm.Engine"
-                },
-                "dataSourceName": {
+                "createdTime": {
                     "type": "string"
                 },
-                "dbName": {
+                "database": {
                     "type": "string"
                 },
-                "driverName": {
+                "databaseType": {
+                    "type": "string"
+                },
+                "host": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "owner": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string"
+                },
+                "port": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "table": {
+                    "type": "string"
+                },
+                "tableNamePrefix": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "user": {
                     "type": "string"
                 }
             }
@@ -5433,7 +5462,7 @@
             "title": "CasbinRequest",
             "type": "array",
             "items": {
-                "$ref": "#/definitions/object.CasbinRequest"
+                "$ref": "#/definitions/object.\u0026{197049 0xc000a2cd50 false}"
             }
         },
         "object.Cert": {
@@ -5483,49 +5512,42 @@
                 }
             }
         },
-        "object.Chat": {
-            "title": "Chat",
+        "object.Enforce": {
+            "title": "Enforce",
+            "type": "object"
+        },
+        "object.Enforcer": {
+            "title": "Enforcer",
             "type": "object",
             "properties": {
-                "category": {
+                "adapter": {
                     "type": "string"
                 },
                 "createdTime": {
                     "type": "string"
                 },
+                "description": {
+                    "type": "string"
+                },
                 "displayName": {
                     "type": "string"
                 },
-                "messageCount": {
-                    "type": "integer",
-                    "format": "int64"
-                },
-                "name": {
+                "model": {
                     "type": "string"
                 },
-                "organization": {
+                "modelCfg": {
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "name": {
                     "type": "string"
                 },
                 "owner": {
                     "type": "string"
                 },
-                "type": {
-                    "type": "string"
-                },
                 "updatedTime": {
                     "type": "string"
-                },
-                "user1": {
-                    "type": "string"
-                },
-                "user2": {
-                    "type": "string"
-                },
-                "users": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
                 }
             }
         },
@@ -5681,6 +5703,59 @@
                 }
             }
         },
+        "object.Ldap": {
+            "title": "Ldap",
+            "type": "object",
+            "properties": {
+                "autoSync": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "baseDn": {
+                    "type": "string"
+                },
+                "createdTime": {
+                    "type": "string"
+                },
+                "enableSsl": {
+                    "type": "boolean"
+                },
+                "filter": {
+                    "type": "string"
+                },
+                "filterFields": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "host": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "lastSync": {
+                    "type": "string"
+                },
+                "owner": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string"
+                },
+                "port": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "serverName": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
         "object.ManagedAccount": {
             "title": "ManagedAccount",
             "type": "object",
@@ -5695,36 +5770,6 @@
                     "type": "string"
                 },
                 "username": {
-                    "type": "string"
-                }
-            }
-        },
-        "object.Message": {
-            "title": "Message",
-            "type": "object",
-            "properties": {
-                "author": {
-                    "type": "string"
-                },
-                "chat": {
-                    "type": "string"
-                },
-                "createdTime": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "organization": {
-                    "type": "string"
-                },
-                "owner": {
-                    "type": "string"
-                },
-                "replyTo": {
-                    "type": "string"
-                },
-                "text": {
                     "type": "string"
                 }
             }
@@ -5783,9 +5828,6 @@
                 },
                 "displayName": {
                     "type": "string"
-                },
-                "isEnabled": {
-                    "type": "boolean"
                 },
                 "modelText": {
                     "type": "string"
@@ -5964,6 +6006,24 @@
                 }
             }
         },
+        "object.Ormer": {
+            "title": "Ormer",
+            "type": "object",
+            "properties": {
+                "Engine": {
+                    "$ref": "#/definitions/xorm.Engine"
+                },
+                "dataSourceName": {
+                    "type": "string"
+                },
+                "dbName": {
+                    "type": "string"
+                },
+                "driverName": {
+                    "type": "string"
+                }
+            }
+        },
         "object.Payment": {
             "title": "Payment",
             "type": "object",
@@ -6001,7 +6061,7 @@
                 "name": {
                     "type": "string"
                 },
-                "organization": {
+                "outOrderId": {
                     "type": "string"
                 },
                 "owner": {
@@ -6039,7 +6099,7 @@
                     "type": "string"
                 },
                 "state": {
-                    "type": "string"
+                    "$ref": "#/definitions/pp.PaymentState"
                 },
                 "tag": {
                     "type": "string"
@@ -6739,9 +6799,6 @@
                         "$ref": "#/definitions/object.TableColumn"
                     }
                 },
-                "tablePrimaryKey": {
-                    "type": "string"
-                },
                 "type": {
                     "type": "string"
                 },
@@ -6758,6 +6815,9 @@
                     "type": "string"
                 },
                 "isHashed": {
+                    "type": "boolean"
+                },
+                "isKey": {
                     "type": "boolean"
                 },
                 "name": {
@@ -7079,9 +7139,6 @@
                 "isForbidden": {
                     "type": "boolean"
                 },
-                "isGlobalAdmin": {
-                    "type": "boolean"
-                },
                 "isOnline": {
                     "type": "boolean"
                 },
@@ -7135,6 +7192,9 @@
                     }
                 },
                 "meetup": {
+                    "type": "string"
+                },
+                "metamask": {
                     "type": "string"
                 },
                 "mfaEmailEnabled": {
@@ -7304,6 +7364,9 @@
                 "vk": {
                     "type": "string"
                 },
+                "web3onboard": {
+                    "type": "string"
+                },
                 "webauthnCredentials": {
                     "type": "array",
                     "items": {
@@ -7423,6 +7486,18 @@
                 }
             }
         },
+        "pp.PaymentState": {
+            "title": "PaymentState",
+            "type": "string",
+            "enum": [
+                "PaymentStatePaid = \"Paid\"",
+                "PaymentStateCreated = \"Created\"",
+                "PaymentStateCanceled = \"Canceled\"",
+                "PaymentStateTimeout = \"Timeout\"",
+                "PaymentStateError = \"Error\""
+            ],
+            "example": "Paid"
+        },
         "protocol.CredentialAssertion": {
             "title": "CredentialAssertion",
             "type": "object"
@@ -7483,6 +7558,17 @@
         "xorm.Engine": {
             "title": "Engine",
             "type": "object"
+        },
+        "xormadapter.Adapter": {
+            "title": "Adapter",
+            "type": "object"
+        }
+    },
+    "securityDefinitions": {
+        "AccessToken": {
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
         }
     }
 }

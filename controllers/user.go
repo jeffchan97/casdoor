@@ -45,8 +45,7 @@ func (c *ApiController) GetGlobalUsers() {
 			return
 		}
 
-		c.Data["json"] = maskedUsers
-		c.ServeJSON()
+		c.ResponseOk(maskedUsers)
 	} else {
 		limit := util.ParseInt(limit)
 		count, err := object.GetGlobalUserCount(field, value)
@@ -91,7 +90,7 @@ func (c *ApiController) GetUsers() {
 
 	if limit == "" || page == "" {
 		if groupName != "" {
-			maskedUsers, err := object.GetMaskedUsers(object.GetGroupUsers(groupName))
+			maskedUsers, err := object.GetMaskedUsers(object.GetGroupUsers(util.GetId(owner, groupName)))
 			if err != nil {
 				c.ResponseError(err.Error())
 				return
@@ -106,8 +105,7 @@ func (c *ApiController) GetUsers() {
 			return
 		}
 
-		c.Data["json"] = maskedUsers
-		c.ServeJSON()
+		c.ResponseOk(maskedUsers)
 	} else {
 		limit := util.ParseInt(limit)
 		count, err := object.GetUserCount(owner, field, value, groupName)
@@ -162,35 +160,47 @@ func (c *ApiController) GetUser() {
 		id = util.GetId(userFromUserId.Owner, userFromUserId.Name)
 	}
 
-	if owner == "" {
-		owner = util.GetOwnerFromId(id)
-	}
+	var user *object.User
 
-	organization, err := object.GetOrganization(util.GetId("admin", owner))
-	if err != nil {
-		c.ResponseError(err.Error())
-		return
-	}
+	if id == "" && owner == "" {
+		switch {
+		case email != "":
+			user, err = object.GetUserByEmailOnly(email)
+		case phone != "":
+			user, err = object.GetUserByPhoneOnly(phone)
+		case userId != "":
+			user, err = object.GetUserByUserIdOnly(userId)
+		}
+	} else {
+		if owner == "" {
+			owner = util.GetOwnerFromId(id)
+		}
 
-	if !organization.IsProfilePublic {
-		requestUserId := c.GetSessionUsername()
-		hasPermission, err := object.CheckUserPermission(requestUserId, id, false, c.GetAcceptLanguage())
-		if !hasPermission {
+		organization, err := object.GetOrganization(util.GetId("admin", owner))
+		if err != nil {
 			c.ResponseError(err.Error())
 			return
 		}
-	}
 
-	var user *object.User
-	switch {
-	case email != "":
-		user, err = object.GetUserByEmail(owner, email)
-	case phone != "":
-		user, err = object.GetUserByPhone(owner, phone)
-	case userId != "":
-		user = userFromUserId
-	default:
-		user, err = object.GetUser(id)
+		if !organization.IsProfilePublic {
+			requestUserId := c.GetSessionUsername()
+			hasPermission, err := object.CheckUserPermission(requestUserId, id, false, c.GetAcceptLanguage())
+			if !hasPermission {
+				c.ResponseError(err.Error())
+				return
+			}
+		}
+
+		switch {
+		case email != "":
+			user, err = object.GetUserByEmail(owner, email)
+		case phone != "":
+			user, err = object.GetUserByPhone(owner, phone)
+		case userId != "":
+			user = userFromUserId
+		default:
+			user, err = object.GetUser(id)
+		}
 	}
 
 	if err != nil {
@@ -198,21 +208,24 @@ func (c *ApiController) GetUser() {
 		return
 	}
 
-	user.MultiFactorAuths = object.GetAllMfaProps(user, true)
+	if user != nil {
+		user.MultiFactorAuths = object.GetAllMfaProps(user, true)
+	}
+
 	err = object.ExtendUserWithRolesAndPermissions(user)
 	if err != nil {
 		c.ResponseError(err.Error())
 		return
 	}
 
-	maskedUser, err := object.GetMaskedUser(user)
+	isAdminOrSelf := c.IsAdminOrSelf(user)
+	maskedUser, err := object.GetMaskedUser(user, isAdminOrSelf)
 	if err != nil {
 		c.ResponseError(err.Error())
 		return
 	}
 
-	c.Data["json"] = maskedUser
-	c.ServeJSON()
+	c.ResponseOk(maskedUser)
 }
 
 // UpdateUser
@@ -255,6 +268,13 @@ func (c *ApiController) UpdateUser() {
 	if oldUser.Owner == "built-in" && oldUser.Name == "admin" && (user.Owner != "built-in" || user.Name != "admin") {
 		c.ResponseError(c.T("auth:Unauthorized operation"))
 		return
+	}
+
+	if c.Input().Get("allowEmpty") == "" {
+		if user.DisplayName == "" {
+			c.ResponseError(c.T("user:Display name cannot be empty"))
+			return
+		}
 	}
 
 	if msg := object.CheckUpdateUser(oldUser, &user, c.GetAcceptLanguage()); msg != "" {
@@ -440,12 +460,25 @@ func (c *ApiController) SetPassword() {
 	}
 
 	targetUser, err := object.GetUser(userId)
+	if targetUser == nil {
+		c.ResponseError(fmt.Sprintf(c.T("general:The user: %s doesn't exist"), userId))
+		return
+	}
 	if err != nil {
 		c.ResponseError(err.Error())
 		return
 	}
 
-	if oldPassword != "" {
+	isAdmin := c.IsAdmin()
+	if isAdmin {
+		if oldPassword != "" {
+			msg := object.CheckPassword(targetUser, oldPassword, c.GetAcceptLanguage())
+			if msg != "" {
+				c.ResponseError(msg)
+				return
+			}
+		}
+	} else {
 		msg := object.CheckPassword(targetUser, oldPassword, c.GetAcceptLanguage())
 		if msg != "" {
 			c.ResponseError(msg)
@@ -509,8 +542,7 @@ func (c *ApiController) GetSortedUsers() {
 		return
 	}
 
-	c.Data["json"] = maskedUsers
-	c.ServeJSON()
+	c.ResponseOk(maskedUsers)
 }
 
 // GetUserCount
@@ -537,8 +569,7 @@ func (c *ApiController) GetUserCount() {
 		return
 	}
 
-	c.Data["json"] = count
-	c.ServeJSON()
+	c.ResponseOk(count)
 }
 
 // AddUserkeys
@@ -568,6 +599,22 @@ func (c *ApiController) RemoveUserFromGroup() {
 	name := c.Ctx.Request.Form.Get("name")
 	groupName := c.Ctx.Request.Form.Get("groupName")
 
-	c.Data["json"] = wrapActionResponse(object.RemoveUserFromGroup(owner, name, groupName))
-	c.ServeJSON()
+	organization, err := object.GetOrganization(util.GetId("admin", owner))
+	if err != nil {
+		return
+	}
+	item := object.GetAccountItemByName("Groups", organization)
+	res, msg := object.CheckAccountItemModifyRule(item, c.IsAdmin(), c.GetAcceptLanguage())
+	if !res {
+		c.ResponseError(msg)
+		return
+	}
+
+	affected, err := object.DeleteGroupForUser(util.GetId(owner, name), groupName)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+
+	c.ResponseOk(affected)
 }

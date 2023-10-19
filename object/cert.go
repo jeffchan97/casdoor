@@ -33,10 +33,8 @@ type Cert struct {
 	BitSize         int    `json:"bitSize"`
 	ExpireInYears   int    `json:"expireInYears"`
 
-	Certificate            string `xorm:"mediumtext" json:"certificate"`
-	PrivateKey             string `xorm:"mediumtext" json:"privateKey"`
-	AuthorityPublicKey     string `xorm:"mediumtext" json:"authorityPublicKey"`
-	AuthorityRootPublicKey string `xorm:"mediumtext" json:"authorityRootPublicKey"`
+	Certificate string `xorm:"mediumtext" json:"certificate"`
+	PrivateKey  string `xorm:"mediumtext" json:"privateKey"`
 }
 
 func GetMaskedCert(cert *Cert) *Cert {
@@ -65,7 +63,7 @@ func GetCertCount(owner, field, value string) (int64, error) {
 
 func GetCerts(owner string) ([]*Cert, error) {
 	certs := []*Cert{}
-	err := adapter.Engine.Where("owner = ? or owner = ? ", "admin", owner).Desc("created_time").Find(&certs, &Cert{})
+	err := ormer.Engine.Where("owner = ? or owner = ? ", "admin", owner).Desc("created_time").Find(&certs, &Cert{})
 	if err != nil {
 		return certs, err
 	}
@@ -91,7 +89,7 @@ func GetGlobalCertsCount(field, value string) (int64, error) {
 
 func GetGlobleCerts() ([]*Cert, error) {
 	certs := []*Cert{}
-	err := adapter.Engine.Desc("created_time").Find(&certs)
+	err := ormer.Engine.Desc("created_time").Find(&certs)
 	if err != nil {
 		return certs, err
 	}
@@ -116,7 +114,7 @@ func getCert(owner string, name string) (*Cert, error) {
 	}
 
 	cert := Cert{Owner: owner, Name: name}
-	existed, err := adapter.Engine.Get(&cert)
+	existed, err := ormer.Engine.Get(&cert)
 	if err != nil {
 		return &cert, err
 	}
@@ -134,7 +132,7 @@ func getCertByName(name string) (*Cert, error) {
 	}
 
 	cert := Cert{Name: name}
-	existed, err := adapter.Engine.Get(&cert)
+	existed, err := ormer.Engine.Get(&cert)
 	if err != nil {
 		return &cert, nil
 	}
@@ -162,10 +160,10 @@ func UpdateCert(id string, cert *Cert) (bool, error) {
 	if name != cert.Name {
 		err := certChangeTrigger(name, cert.Name)
 		if err != nil {
-			return false, nil
+			return false, err
 		}
 	}
-	affected, err := adapter.Engine.ID(core.PK{owner, name}).AllCols().Update(cert)
+	affected, err := ormer.Engine.ID(core.PK{owner, name}).AllCols().Update(cert)
 	if err != nil {
 		return false, err
 	}
@@ -180,7 +178,7 @@ func AddCert(cert *Cert) (bool, error) {
 		cert.PrivateKey = privateKey
 	}
 
-	affected, err := adapter.Engine.Insert(cert)
+	affected, err := ormer.Engine.Insert(cert)
 	if err != nil {
 		return false, err
 	}
@@ -189,7 +187,7 @@ func AddCert(cert *Cert) (bool, error) {
 }
 
 func DeleteCert(cert *Cert) (bool, error) {
-	affected, err := adapter.Engine.ID(core.PK{cert.Owner, cert.Name}).Delete(&Cert{})
+	affected, err := ormer.Engine.ID(core.PK{cert.Owner, cert.Name}).Delete(&Cert{})
 	if err != nil {
 		return false, err
 	}
@@ -214,7 +212,7 @@ func GetDefaultCert() (*Cert, error) {
 }
 
 func certChangeTrigger(oldName string, newName string) error {
-	session := adapter.Engine.NewSession()
+	session := ormer.Engine.NewSession()
 	defer session.Close()
 
 	err := session.Begin()

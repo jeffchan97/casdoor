@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import React from "react";
-import {Button, Card, Col, ConfigProvider, Input, Popover, Radio, Result, Row, Select, Switch, Upload} from "antd";
+import {Button, Card, Col, ConfigProvider, Input, List, Popover, Radio, Result, Row, Select, Space, Switch, Upload} from "antd";
 import {CopyOutlined, LinkOutlined, UploadOutlined} from "@ant-design/icons";
 import * as ApplicationBackend from "./backend/ApplicationBackend";
 import * as CertBackend from "./backend/CertBackend";
@@ -28,12 +28,13 @@ import i18next from "i18next";
 import UrlTable from "./table/UrlTable";
 import ProviderTable from "./table/ProviderTable";
 import SignupTable from "./table/SignupTable";
+import SamlAttributeTable from "./table/SamlAttributeTable";
 import PromptPage from "./auth/PromptPage";
 import copy from "copy-to-clipboard";
+import ThemeEditor from "./common/theme/ThemeEditor";
 
 import {Controlled as CodeMirror} from "react-codemirror2";
 import "codemirror/lib/codemirror.css";
-import ThemeEditor from "./common/theme/ThemeEditor";
 
 require("codemirror/theme/material-darker.css");
 require("codemirror/mode/htmlmixed/htmlmixed");
@@ -104,6 +105,7 @@ class ApplicationEditPage extends React.Component {
       providers: [],
       uploading: false,
       mode: props.location.mode !== undefined ? props.location.mode : "edit",
+      samlAttributes: [],
       samlMetadata: null,
       isAuthorized: true,
     };
@@ -119,7 +121,7 @@ class ApplicationEditPage extends React.Component {
   getApplication() {
     ApplicationBackend.getApplication("admin", this.state.applicationName)
       .then((res) => {
-        if (res === null) {
+        if (res.data === null) {
           this.props.history.push("/404");
           return;
         }
@@ -129,32 +131,37 @@ class ApplicationEditPage extends React.Component {
           return;
         }
 
-        if (res.grantTypes === null || res.grantTypes === undefined || res.grantTypes.length === 0) {
-          res.grantTypes = ["authorization_code"];
+        const application = res.data;
+        if (application.grantTypes === null || application.grantTypes === undefined || application.grantTypes.length === 0) {
+          application.grantTypes = ["authorization_code"];
         }
 
-        if (res.tags === null || res.tags === undefined) {
-          res.tags = [];
+        if (application.tags === null || application.tags === undefined) {
+          application.tags = [];
+        }
+
+        if (application.invitationCodes === null) {
+          application.invitationCodes = [];
         }
 
         this.setState({
-          application: res,
+          application: application,
         });
 
-        this.getCerts(res.organization);
+        this.getCerts(application.organization);
       });
   }
 
   getOrganizations() {
     OrganizationBackend.getOrganizations("admin")
       .then((res) => {
-        if (res?.status === "error") {
+        if (res.status === "error") {
           this.setState({
             isAuthorized: false,
           });
         } else {
           this.setState({
-            organizations: (res.msg === undefined) ? res : [],
+            organizations: res.data || [],
           });
         }
       });
@@ -164,7 +171,7 @@ class ApplicationEditPage extends React.Component {
     CertBackend.getCerts(owner)
       .then((res) => {
         this.setState({
-          certs: (res.msg === undefined) ? res : [],
+          certs: res.data || [],
         });
       });
   }
@@ -184,9 +191,9 @@ class ApplicationEditPage extends React.Component {
 
   getSamlMetadata() {
     ApplicationBackend.getSamlMetadata("admin", this.state.applicationName)
-      .then((res) => {
+      .then((data) => {
         this.setState({
-          samlMetadata: res,
+          samlMetadata: data,
         });
       });
   }
@@ -200,7 +207,6 @@ class ApplicationEditPage extends React.Component {
 
   updateApplicationField(key, value) {
     value = this.parseApplicationField(key, value);
-
     const application = this.state.application;
     application[key] = value;
     this.setState({
@@ -538,7 +544,7 @@ class ApplicationEditPage extends React.Component {
             {Setting.getLabel(i18next.t("signup:Terms of Use"), i18next.t("signup:Terms of Use - Tooltip"))} :
           </Col>
           <Col span={22} >
-            <Input value={this.state.application.termsOfUse} style={{marginBottom: "10px"}} onChange={e => {
+            <Input prefix={<LinkOutlined />} value={this.state.application.termsOfUse} style={{marginBottom: "10px"}} onChange={e => {
               this.updateApplicationField("termsOfUse", e.target.value);
             }} />
             <Upload maxCount={1} accept=".html" showUploadList={false}
@@ -632,6 +638,19 @@ class ApplicationEditPage extends React.Component {
             <Switch checked={this.state.application.enableSamlCompress} onChange={checked => {
               this.updateApplicationField("enableSamlCompress", checked);
             }} />
+          </Col>
+        </Row>
+        <Row style={{marginTop: "20px"}} >
+          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+            {Setting.getLabel(i18next.t("general:SAML Attribute"), i18next.t("general:SAML Attribute - Tooltip"))} :
+          </Col>
+          <Col span={22} >
+            <SamlAttributeTable
+              title={i18next.t("general:SAML Attribute")}
+              table={this.state.application.samlAttributes}
+              application={this.state.application}
+              onUpdateTable={(value) => {this.updateApplicationField("samlAttributes", value);}}
+            />
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}} >
@@ -812,18 +831,68 @@ class ApplicationEditPage extends React.Component {
         </Row>
         {
           !this.state.application.enableSignUp ? null : (
-            <Row style={{marginTop: "20px"}} >
-              <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                {Setting.getLabel(i18next.t("application:Signup items"), i18next.t("application:Signup items - Tooltip"))} :
-              </Col>
-              <Col span={22} >
-                <SignupTable
-                  title={i18next.t("application:Signup items")}
-                  table={this.state.application.signupItems}
-                  onUpdateTable={(value) => {this.updateApplicationField("signupItems", value);}}
-                />
-              </Col>
-            </Row>
+            <React.Fragment>
+              <Row style={{marginTop: "20px"}} >
+                <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+                  {Setting.getLabel(i18next.t("application:Signup items"), i18next.t("application:Signup items - Tooltip"))} :
+                </Col>
+                <Col span={22} >
+                  <SignupTable
+                    title={i18next.t("application:Signup items")}
+                    table={this.state.application.signupItems}
+                    onUpdateTable={(value) => {
+                      this.updateApplicationField("signupItems", value);
+                    }}
+                  />
+                </Col>
+              </Row>
+              <Row style={{marginTop: "20px"}} >
+                <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+                  {Setting.getLabel(i18next.t("application:Invitation code"), i18next.t("application:Invitation code - Tooltip"))} :
+                </Col>
+                <Col span={22} >
+                  <List
+                    header={
+                      <Button type="primary" onClick={() => {
+                        this.updateApplicationField("invitationCodes", Setting.addRow(this.state.application.invitationCodes, Setting.getRandomName()));
+                      }
+                      }>
+                        {i18next.t("general:Add")}
+                      </Button>
+                    }
+                    dataSource={this.state.application.invitationCodes.map(code => {
+                      return {code: code};
+                    })}
+                    renderItem={(item, index) => (
+                      <List.Item key={index}>
+                        <Space>
+                          <Input value={item.code} onChange={e => {
+                            const invitationCodes = [...this.state.application.invitationCodes];
+                            invitationCodes[index] = e.target.value;
+                            this.updateApplicationField("invitationCodes", invitationCodes);
+                          }} />
+                        </Space>
+                        <Space>
+                          <Button icon={<CopyOutlined />} onClick={() => {
+                            copy(item.code);
+                            Setting.showMessage("success", i18next.t("application:Invitation code copied to clipboard successfully"));
+                          }
+                          }>
+                            {i18next.t("general:Copy")}
+                          </Button>
+                          <Button type="primary" danger onClick={() => {
+                            this.updateApplicationField("invitationCodes", this.state.application.invitationCodes.filter(code => code !== item.code));
+                          }
+                          }>
+                            {i18next.t("general:Delete")}
+                          </Button>
+                        </Space>
+                      </List.Item>
+                    )}
+                  />
+                </Col>
+              </Row>
+            </React.Fragment>
           )
         }
         <Row style={{marginTop: "20px"}} >
@@ -947,7 +1016,7 @@ class ApplicationEditPage extends React.Component {
     );
   }
 
-  submitApplicationEdit(willExist) {
+  submitApplicationEdit(exitAfterSave) {
     const application = Setting.deepCopy(this.state.application);
     application.providers = application.providers?.filter(provider => this.state.providers.map(provider => provider.name).includes(provider.name));
 
@@ -959,7 +1028,7 @@ class ApplicationEditPage extends React.Component {
             applicationName: this.state.application.name,
           });
 
-          if (willExist) {
+          if (exitAfterSave) {
             this.props.history.push("/applications");
           } else {
             this.props.history.push(`/applications/${this.state.application.organization}/${this.state.application.name}`);

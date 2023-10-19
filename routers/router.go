@@ -13,10 +13,14 @@
 // limitations under the License.
 
 // Package routers
-// @APIVersion 1.0.0
-// @Title Casdoor API
-// @Description Documentation of Casdoor API
-// @Contact admin@casbin.org
+// @APIVersion 1.376.1
+// @Title Casdoor RESTful API
+// @Description Swagger Docs of Casdoor Backend API
+// @Contact casbin@googlegroups.com
+// @SecurityDefinition AccessToken apiKey Authorization header
+// @Schemes https,http
+// @ExternalDocs Find out more about Casdoor
+// @ExternalDocsUrl https://casdoor.org/
 package routers
 
 import (
@@ -47,6 +51,7 @@ func initAPI() {
 	beego.Router("/api/signup", &controllers.ApiController{}, "POST:Signup")
 	beego.Router("/api/login", &controllers.ApiController{}, "POST:Login")
 	beego.Router("/api/get-app-login", &controllers.ApiController{}, "GET:GetApplicationLogin")
+	beego.Router("/api/get-dashboard", &controllers.ApiController{}, "GET:GetDashboard")
 	beego.Router("/api/logout", &controllers.ApiController{}, "GET,POST:Logout")
 	beego.Router("/api/get-account", &controllers.ApiController{}, "GET:GetAccount")
 	beego.Router("/api/userinfo", &controllers.ApiController{}, "GET:GetUserinfo")
@@ -58,6 +63,7 @@ func initAPI() {
 	beego.Router("/api/webhook", &controllers.ApiController{}, "POST:HandleOfficialAccountEvent")
 	beego.Router("/api/get-webhook-event", &controllers.ApiController{}, "GET:GetWebhookEventType")
 	beego.Router("/api/get-captcha-status", &controllers.ApiController{}, "GET:GetCaptchaStatus")
+	beego.Router("/api/callback", &controllers.ApiController{}, "POST:Callback")
 
 	beego.Router("/api/get-organizations", &controllers.ApiController{}, "GET:GetOrganizations")
 	beego.Router("/api/get-organization", &controllers.ApiController{}, "GET:GetOrganization")
@@ -113,15 +119,21 @@ func initAPI() {
 	beego.Router("/api/add-model", &controllers.ApiController{}, "POST:AddModel")
 	beego.Router("/api/delete-model", &controllers.ApiController{}, "POST:DeleteModel")
 
-	beego.Router("/api/get-adapters", &controllers.ApiController{}, "GET:GetCasbinAdapters")
-	beego.Router("/api/get-adapter", &controllers.ApiController{}, "GET:GetCasbinAdapter")
-	beego.Router("/api/update-adapter", &controllers.ApiController{}, "POST:UpdateCasbinAdapter")
-	beego.Router("/api/add-adapter", &controllers.ApiController{}, "POST:AddCasbinAdapter")
-	beego.Router("/api/delete-adapter", &controllers.ApiController{}, "POST:DeleteCasbinAdapter")
-	beego.Router("/api/sync-policies", &controllers.ApiController{}, "GET:SyncPolicies")
+	beego.Router("/api/get-adapters", &controllers.ApiController{}, "GET:GetAdapters")
+	beego.Router("/api/get-adapter", &controllers.ApiController{}, "GET:GetAdapter")
+	beego.Router("/api/update-adapter", &controllers.ApiController{}, "POST:UpdateAdapter")
+	beego.Router("/api/add-adapter", &controllers.ApiController{}, "POST:AddAdapter")
+	beego.Router("/api/delete-adapter", &controllers.ApiController{}, "POST:DeleteAdapter")
+	beego.Router("/api/get-policies", &controllers.ApiController{}, "GET:GetPolicies")
 	beego.Router("/api/update-policy", &controllers.ApiController{}, "POST:UpdatePolicy")
 	beego.Router("/api/add-policy", &controllers.ApiController{}, "POST:AddPolicy")
 	beego.Router("/api/remove-policy", &controllers.ApiController{}, "POST:RemovePolicy")
+
+	beego.Router("/api/get-enforcers", &controllers.ApiController{}, "GET:GetEnforcers")
+	beego.Router("/api/get-enforcer", &controllers.ApiController{}, "GET:GetEnforcer")
+	beego.Router("/api/update-enforcer", &controllers.ApiController{}, "POST:UpdateEnforcer")
+	beego.Router("/api/add-enforcer", &controllers.ApiController{}, "POST:AddEnforcer")
+	beego.Router("/api/delete-enforcer", &controllers.ApiController{}, "POST:DeleteEnforcer")
 
 	beego.Router("/api/set-password", &controllers.ApiController{}, "POST:SetPassword")
 	beego.Router("/api/check-user-password", &controllers.ApiController{}, "POST:CheckUserPassword")
@@ -170,9 +182,6 @@ func initAPI() {
 	beego.Router("/api/login/oauth/access_token", &controllers.ApiController{}, "POST:GetOAuthToken")
 	beego.Router("/api/login/oauth/refresh_token", &controllers.ApiController{}, "POST:RefreshToken")
 	beego.Router("/api/login/oauth/introspect", &controllers.ApiController{}, "POST:IntrospectToken")
-	beego.Router("/api/get-records", &controllers.ApiController{}, "GET:GetRecords")
-	beego.Router("/api/get-records-filter", &controllers.ApiController{}, "POST:GetRecordsByFilter")
-	beego.Router("/api/add-record", &controllers.ApiController{}, "POST:AddRecord")
 
 	beego.Router("/api/get-sessions", &controllers.ApiController{}, "GET:GetSessions")
 	beego.Router("/api/get-session", &controllers.ApiController{}, "GET:GetSingleSession")
@@ -200,19 +209,6 @@ func initAPI() {
 	beego.Router("/api/update-cert", &controllers.ApiController{}, "POST:UpdateCert")
 	beego.Router("/api/add-cert", &controllers.ApiController{}, "POST:AddCert")
 	beego.Router("/api/delete-cert", &controllers.ApiController{}, "POST:DeleteCert")
-
-	beego.Router("/api/get-chats", &controllers.ApiController{}, "GET:GetChats")
-	beego.Router("/api/get-chat", &controllers.ApiController{}, "GET:GetChat")
-	beego.Router("/api/update-chat", &controllers.ApiController{}, "POST:UpdateChat")
-	beego.Router("/api/add-chat", &controllers.ApiController{}, "POST:AddChat")
-	beego.Router("/api/delete-chat", &controllers.ApiController{}, "POST:DeleteChat")
-
-	beego.Router("/api/get-messages", &controllers.ApiController{}, "GET:GetMessages")
-	beego.Router("/api/get-message", &controllers.ApiController{}, "GET:GetMessage")
-	beego.Router("/api/get-message-answer", &controllers.ApiController{}, "GET:GetMessageAnswer")
-	beego.Router("/api/update-message", &controllers.ApiController{}, "POST:UpdateMessage")
-	beego.Router("/api/add-message", &controllers.ApiController{}, "POST:AddMessage")
-	beego.Router("/api/delete-message", &controllers.ApiController{}, "POST:DeleteMessage")
 
 	beego.Router("/api/get-subscriptions", &controllers.ApiController{}, "GET:GetSubscriptions")
 	beego.Router("/api/get-subscription", &controllers.ApiController{}, "GET:GetSubscription")
@@ -245,28 +241,17 @@ func initAPI() {
 	beego.Router("/api/update-payment", &controllers.ApiController{}, "POST:UpdatePayment")
 	beego.Router("/api/add-payment", &controllers.ApiController{}, "POST:AddPayment")
 	beego.Router("/api/delete-payment", &controllers.ApiController{}, "POST:DeletePayment")
-	beego.Router("/api/notify-payment/?:owner/?:provider/?:product/?:payment", &controllers.ApiController{}, "POST:NotifyPayment")
+	beego.Router("/api/notify-payment/?:owner/?:payment", &controllers.ApiController{}, "POST:NotifyPayment")
 	beego.Router("/api/invoice-payment", &controllers.ApiController{}, "POST:InvoicePayment")
 
 	beego.Router("/api/send-email", &controllers.ApiController{}, "POST:SendEmail")
 	beego.Router("/api/send-sms", &controllers.ApiController{}, "POST:SendSms")
+	beego.Router("/api/send-notification", &controllers.ApiController{}, "POST:SendNotification")
 
-	beego.Router("/.well-known/openid-configuration", &controllers.RootController{}, "GET:GetOidcDiscovery")
-	beego.Router("/.well-known/jwks", &controllers.RootController{}, "*:GetJwks")
-
-	beego.Router("/cas/:organization/:application/serviceValidate", &controllers.RootController{}, "GET:CasServiceValidate")
-	beego.Router("/cas/:organization/:application/proxyValidate", &controllers.RootController{}, "GET:CasProxyValidate")
-	beego.Router("/cas/:organization/:application/proxy", &controllers.RootController{}, "GET:CasProxy")
-	beego.Router("/cas/:organization/:application/validate", &controllers.RootController{}, "GET:CasValidate")
-
-	beego.Router("/cas/:organization/:application/p3/serviceValidate", &controllers.RootController{}, "GET:CasP3ServiceAndProxyValidate")
-	beego.Router("/cas/:organization/:application/p3/proxyValidate", &controllers.RootController{}, "GET:CasP3ServiceAndProxyValidate")
-	beego.Router("/cas/:organization/:application/samlValidate", &controllers.RootController{}, "POST:SamlValidate")
-
-	beego.Router("/api/webauthn/signup/begin", &controllers.ApiController{}, "Get:WebAuthnSignupBegin")
-	beego.Router("/api/webauthn/signup/finish", &controllers.ApiController{}, "Post:WebAuthnSignupFinish")
-	beego.Router("/api/webauthn/signin/begin", &controllers.ApiController{}, "Get:WebAuthnSigninBegin")
-	beego.Router("/api/webauthn/signin/finish", &controllers.ApiController{}, "Post:WebAuthnSigninFinish")
+	beego.Router("/api/webauthn/signup/begin", &controllers.ApiController{}, "GET:WebAuthnSignupBegin")
+	beego.Router("/api/webauthn/signup/finish", &controllers.ApiController{}, "POST:WebAuthnSignupFinish")
+	beego.Router("/api/webauthn/signin/begin", &controllers.ApiController{}, "GET:WebAuthnSigninBegin")
+	beego.Router("/api/webauthn/signin/finish", &controllers.ApiController{}, "POST:WebAuthnSigninFinish")
 
 	beego.Router("/api/mfa/setup/initiate", &controllers.ApiController{}, "POST:MfaSetupInitiate")
 	beego.Router("/api/mfa/setup/verify", &controllers.ApiController{}, "POST:MfaSetupVerify")
@@ -280,4 +265,18 @@ func initAPI() {
 	beego.Router("/api/get-prometheus-info", &controllers.ApiController{}, "GET:GetPrometheusInfo")
 
 	beego.Handler("/api/metrics", promhttp.Handler())
+
+	beego.Router("/.well-known/openid-configuration", &controllers.RootController{}, "GET:GetOidcDiscovery")
+	beego.Router("/.well-known/jwks", &controllers.RootController{}, "*:GetJwks")
+
+	beego.Router("/cas/:organization/:application/serviceValidate", &controllers.RootController{}, "GET:CasServiceValidate")
+	beego.Router("/cas/:organization/:application/proxyValidate", &controllers.RootController{}, "GET:CasProxyValidate")
+	beego.Router("/cas/:organization/:application/proxy", &controllers.RootController{}, "GET:CasProxy")
+	beego.Router("/cas/:organization/:application/validate", &controllers.RootController{}, "GET:CasValidate")
+
+	beego.Router("/cas/:organization/:application/p3/serviceValidate", &controllers.RootController{}, "GET:CasP3ServiceValidate")
+	beego.Router("/cas/:organization/:application/p3/proxyValidate", &controllers.RootController{}, "GET:CasP3ProxyValidate")
+	beego.Router("/cas/:organization/:application/samlValidate", &controllers.RootController{}, "POST:SamlValidate")
+
+	beego.Router("/scim/*", &controllers.RootController{}, "*:HandleScim")
 }

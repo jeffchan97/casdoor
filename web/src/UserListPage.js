@@ -23,6 +23,7 @@ import * as UserBackend from "./backend/UserBackend";
 import i18next from "i18next";
 import BaseListPage from "./BaseListPage";
 import PopconfirmModal from "./common/modal/PopconfirmModal";
+import AccountAvatar from "./account/AccountAvatar";
 
 class UserListPage extends BaseListPage {
   constructor(props) {
@@ -75,12 +76,11 @@ class UserListPage extends BaseListPage {
       phone: Setting.getRandomNumber(),
       countryCode: this.state.organization.countryCodes?.length > 0 ? this.state.organization.countryCodes[0] : "",
       address: [],
-      groups: this.props.groupName ? [this.props.groupName] : [],
+      groups: this.props.groupName ? [`${owner}/${this.props.groupName}`] : [],
       affiliation: "Example Inc.",
       tag: "staff",
       region: "",
       isAdmin: (owner === "built-in"),
-      isGlobalAdmin: (owner === "built-in"),
       IsForbidden: false,
       score: this.state.organization.initScore,
       isDeleted: false,
@@ -187,7 +187,7 @@ class UserListPage extends BaseListPage {
 
     return (
       <Upload {...props}>
-        <Button type="primary" size="small">
+        <Button id="upload-button" type="primary" size="small">
           <UploadOutlined /> {i18next.t("user:Upload (.xlsx)")}
         </Button>
       </Upload>
@@ -270,7 +270,7 @@ class UserListPage extends BaseListPage {
         render: (text, record, index) => {
           return (
             <a target="_blank" rel="noreferrer" href={text}>
-              <img referrerPolicy="no-referrer" src={text} alt={text} width={50} />
+              <AccountAvatar referrerPolicy="no-referrer" src={text} alt={text} size={50} />
             </a>
           );
         },
@@ -298,13 +298,6 @@ class UserListPage extends BaseListPage {
         sorter: true,
         ...this.getColumnSearchProps("phone"),
       },
-      // {
-      //   title: 'Phone',
-      //   dataIndex: 'phone',
-      //   key: 'phone',
-      //   width: '120px',
-      //   sorter: (a, b) => a.phone.localeCompare(b.phone),
-      // },
       {
         title: i18next.t("user:Affiliation"),
         dataIndex: "affiliation",
@@ -346,18 +339,6 @@ class UserListPage extends BaseListPage {
         dataIndex: "isAdmin",
         key: "isAdmin",
         width: "110px",
-        sorter: true,
-        render: (text, record, index) => {
-          return (
-            <Switch disabled checkedChildren="ON" unCheckedChildren="OFF" checked={text} />
-          );
-        },
-      },
-      {
-        title: i18next.t("user:Is global admin"),
-        dataIndex: "isGlobalAdmin",
-        key: "isGlobalAdmin",
-        width: "140px",
         sorter: true,
         render: (text, record, index) => {
           return (
@@ -438,7 +419,7 @@ class UserListPage extends BaseListPage {
           title={() => (
             <div>
               {i18next.t("general:Users")}&nbsp;&nbsp;&nbsp;&nbsp;
-              <Button style={{marginRight: "5px"}} type="primary" size="small" onClick={this.addUser.bind(this)}>{i18next.t("general:Add")}</Button>
+              <Button style={{marginRight: "5px"}} type="primary" size="small" onClick={this.addUser.bind(this)}>{i18next.t("general:Add")} </Button>
               {
                 this.renderUpload()
               }

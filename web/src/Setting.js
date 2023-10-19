@@ -30,10 +30,10 @@ const {Option} = Select;
 
 export const ServerUrl = "";
 
-// export const StaticBaseUrl = "https://cdn.jsdelivr.net/gh/casbin/static";
 export const StaticBaseUrl = "https://cdn.casbin.org";
 
-export const Countries = [{label: "English", key: "en", country: "US", alt: "English"},
+export const Countries = [
+  {label: "English", key: "en", country: "US", alt: "English"},
   {label: "Español", key: "es", country: "ES", alt: "Español"},
   {label: "Français", key: "fr", country: "FR", alt: "Français"},
   {label: "Deutsch", key: "de", country: "DE", alt: "Deutsch"},
@@ -43,7 +43,19 @@ export const Countries = [{label: "English", key: "en", country: "US", alt: "Eng
   {label: "한국어", key: "ko", country: "KR", alt: "한국어"},
   {label: "Русский", key: "ru", country: "RU", alt: "Русский"},
   {label: "TiếngViệt", key: "vi", country: "VN", alt: "TiếngViệt"},
-  {label: "Português", key: "pt", country: "BR", alt: "Português"},
+  {label: "Português", key: "pt", country: "PT", alt: "Português"},
+  {label: "Italiano", key: "it", country: "IT", alt: "Italiano"},
+  {label: "Malay", key: "ms", country: "MY", alt: "Malay"},
+  {label: "Türkçe", key: "tr", country: "TR", alt: "Türkçe"},
+  {label: "لغة عربية", key: "ar", country: "SA", alt: "لغة عربية"},
+  {label: "עִבְרִית", key: "he", country: "IL", alt: "עִבְרִית"},
+  {label: "Nederlands", key: "nl", country: "NL", alt: "Nederlands"},
+  {label: "Polski", key: "pl", country: "PL", alt: "Polski"},
+  {label: "Suomi", key: "fi", country: "FI", alt: "Suomi"},
+  {label: "Svenska", key: "sv", country: "SE", alt: "Svenska"},
+  {label: "Українська", key: "uk", country: "UA", alt: "Українська"},
+  {label: "Қазақ", key: "kk", country: "KZ", alt: "Қазақ"},
+  {label: "فارسی", key: "fa", country: "IR", alt: "فارسی"},
 ];
 
 export function getThemeData(organization, application) {
@@ -83,9 +95,25 @@ export const OtherProviderInfo = {
       logo: `${StaticBaseUrl}/img/social_aliyun.png`,
       url: "https://aliyun.com/product/sms",
     },
+    "Amazon SNS": {
+      logo: `${StaticBaseUrl}/img/social_aws.png`,
+      url: "https://aws.amazon.com/cn/sns/",
+    },
+    "Azure ACS": {
+      logo: `${StaticBaseUrl}/img/social_azure.png`,
+      url: "https://azure.microsoft.com/en-us/products/communication-services",
+    },
+    "Infobip SMS": {
+      logo: `${StaticBaseUrl}/img/social_infobip.png`,
+      url: "https://portal.infobip.com/homepage/",
+    },
     "Tencent Cloud SMS": {
       logo: `${StaticBaseUrl}/img/social_tencent_cloud.jpg`,
       url: "https://cloud.tencent.com/product/sms",
+    },
+    "Baidu Cloud SMS": {
+      logo: `${StaticBaseUrl}/img/social_baidu_cloud.png`,
+      url: "https://cloud.baidu.com/product/sms.html",
     },
     "Volc Engine SMS": {
       logo: `${StaticBaseUrl}/img/social_volc_engine.jpg`,
@@ -94,6 +122,10 @@ export const OtherProviderInfo = {
     "Huawei Cloud SMS": {
       logo: `${StaticBaseUrl}/img/social_huawei.png`,
       url: "https://www.huaweicloud.com/product/msgsms.html",
+    },
+    "UCloud SMS": {
+      logo: `${StaticBaseUrl}/img/social_ucloud.png`,
+      url: "https://www.ucloud.cn/site/product/usms.html",
     },
     "Twilio SMS": {
       logo: `${StaticBaseUrl}/img/social_twilio.svg`,
@@ -106,6 +138,10 @@ export const OtherProviderInfo = {
     "SUBMAIL SMS": {
       logo: `${StaticBaseUrl}/img/social_submail.svg`,
       url: "https://www.mysubmail.com",
+    },
+    "Msg91 SMS": {
+      logo: `${StaticBaseUrl}/img/social_msg91.ico`,
+      url: "https://control.msg91.com/app/",
     },
     "Mock SMS": {
       logo: `${StaticBaseUrl}/img/social_default.png`,
@@ -124,6 +160,10 @@ export const OtherProviderInfo = {
     "Mailtrap": {
       logo: `${StaticBaseUrl}/img/email_mailtrap.png`,
       url: "https://mailtrap.io",
+    },
+    "Azure ACS": {
+      logo: `${StaticBaseUrl}/img/social_azure.png`,
+      url: "https://learn.microsoft.com/zh-cn/azure/communication-services",
     },
   },
   Storage: {
@@ -150,6 +190,14 @@ export const OtherProviderInfo = {
     "Azure Blob": {
       logo: `${StaticBaseUrl}/img/social_azure.png`,
       url: "https://azure.microsoft.com/en-us/services/storage/blobs/",
+    },
+    "Qiniu Cloud Kodo": {
+      logo: `${StaticBaseUrl}/img/social_qiniu_cloud.png`,
+      url: "https://www.qiniu.com/solutions/storage",
+    },
+    "Google Cloud Storage": {
+      logo: `${StaticBaseUrl}/img/social_google_cloud.png`,
+      url: "https://cloud.google.com/storage",
     },
   },
   SAML: {
@@ -178,6 +226,10 @@ export const OtherProviderInfo = {
     "PayPal": {
       logo: `${StaticBaseUrl}/img/payment_paypal.png`,
       url: "https://www.paypal.com/",
+    },
+    "Stripe": {
+      logo: `${StaticBaseUrl}/img/social_stripe.png`,
+      url: "https://stripe.com/",
     },
     "GC": {
       logo: `${StaticBaseUrl}/img/payment_gc.png`,
@@ -214,6 +266,90 @@ export const OtherProviderInfo = {
     "OpenAI API - GPT": {
       logo: `${StaticBaseUrl}/img/social_openai.svg`,
       url: "https://platform.openai.com",
+    },
+  },
+  Web3: {
+    "MetaMask": {
+      logo: `${StaticBaseUrl}/img/social_metamask.svg`,
+      url: "https://metamask.io/",
+    },
+    "Web3Onboard": {
+      logo: `${StaticBaseUrl}/img/social_web3onboard.svg`,
+      url: "https://onboard.blocknative.com/",
+    },
+  },
+  Notification: {
+    "Telegram": {
+      logo: `${StaticBaseUrl}/img/social_telegram.png`,
+      url: "https://telegram.org/",
+    },
+    "Custom HTTP": {
+      logo: `${StaticBaseUrl}/img/email_default.png`,
+      url: "https://casdoor.org/docs/provider/notification/overview",
+    },
+    "DingTalk": {
+      logo: `${StaticBaseUrl}/img/social_dingtalk.png`,
+      url: "https://www.dingtalk.com/",
+    },
+    "Lark": {
+      logo: `${StaticBaseUrl}/img/social_lark.png`,
+      url: "https://www.larksuite.com/",
+    },
+    "Microsoft Teams": {
+      logo: `${StaticBaseUrl}/img/social_teams.png`,
+      url: "https://www.microsoft.com/microsoft-teams",
+    },
+    "Bark": {
+      logo: `${StaticBaseUrl}/img/social_bark.png`,
+      url: "https://apps.apple.com/us/app/bark-customed-notifications/id1403753865",
+    },
+    "Pushover": {
+      logo: `${StaticBaseUrl}/img/social_pushover.png`,
+      url: "https://pushover.net/",
+    },
+    "Pushbullet": {
+      logo: `${StaticBaseUrl}/img/social_pushbullet.png`,
+      url: "https://www.pushbullet.com/",
+    },
+    "Slack": {
+      logo: `${StaticBaseUrl}/img/social_slack.png`,
+      url: "https://slack.com/",
+    },
+    "Webpush": {
+      logo: `${StaticBaseUrl}/img/email_default.png`,
+      url: "https://developer.mozilla.org/en-US/docs/Web/API/Push_API",
+    },
+    "Discord": {
+      logo: `${StaticBaseUrl}/img/social_discord.png`,
+      url: "https://discord.com/",
+    },
+    "Google Chat": {
+      logo: `${StaticBaseUrl}/img/social_google_chat.png`,
+      url: "https://workspace.google.com/intl/en/products/chat/",
+    },
+    "Line": {
+      logo: `${StaticBaseUrl}/img/social_line.png`,
+      url: "https://line.me/",
+    },
+    "Matrix": {
+      logo: `${StaticBaseUrl}/img/social_matrix.png`,
+      url: "https://www.matrix.org/",
+    },
+    "Twitter": {
+      logo: `${StaticBaseUrl}/img/social_twitter.png`,
+      url: "https://twitter.com/",
+    },
+    "Reddit": {
+      logo: `${StaticBaseUrl}/img/social_reddit.png`,
+      url: "https://www.reddit.com/",
+    },
+    "Rocket Chat": {
+      logo: `${StaticBaseUrl}/img/social_rocket_chat.png`,
+      url: "https://rocket.chat/",
+    },
+    "Viber": {
+      logo: `${StaticBaseUrl}/img/social_viber.png`,
+      url: "https://www.viber.com/",
     },
   },
 };
@@ -288,7 +424,7 @@ export function isProviderVisible(providerItem) {
     return false;
   }
 
-  if (providerItem.provider.category !== "OAuth" && providerItem.provider.category !== "SAML") {
+  if (!["OAuth", "SAML", "Web3"].includes(providerItem.provider.category)) {
     return false;
   }
 
@@ -565,7 +701,7 @@ export function isAdminUser(account) {
   if (account === undefined || account === null) {
     return false;
   }
-  return account.owner === "built-in" || account.isGlobalAdmin === true;
+  return account.owner === "built-in";
 }
 
 export function isLocalAdminUser(account) {
@@ -613,7 +749,7 @@ export function isMobile() {
 }
 
 export function getFormattedDate(date) {
-  if (date === undefined) {
+  if (!date) {
     return null;
   }
 
@@ -731,7 +867,7 @@ export function getClickable(text) {
 
 export function getProviderLogoURL(provider) {
   if (provider.category === "OAuth") {
-    if (provider.type === "Custom") {
+    if (provider.type === "Custom" && provider.customLogo) {
       return provider.customLogo;
     }
     return `${StaticBaseUrl}/img/social_${provider.type.toLowerCase()}.png`;
@@ -770,7 +906,7 @@ export function getProviderTypeOptions(category) {
         {id: "WeCom", name: "WeCom"},
         {id: "Lark", name: "Lark"},
         {id: "GitLab", name: "GitLab"},
-        {id: "Adfs", name: "Adfs"},
+        {id: "ADFS", name: "ADFS"},
         {id: "Baidu", name: "Baidu"},
         {id: "Alipay", name: "Alipay"},
         {id: "Casdoor", name: "Casdoor"},
@@ -840,18 +976,25 @@ export function getProviderTypeOptions(category) {
         {id: "Default", name: "Default"},
         {id: "SUBMAIL", name: "SUBMAIL"},
         {id: "Mailtrap", name: "Mailtrap"},
+        {id: "Azure ACS", name: "Azure ACS"},
       ]
     );
   } else if (category === "SMS") {
     return (
       [
-        {id: "Aliyun SMS", name: "Aliyun SMS"},
+        {id: "Aliyun SMS", name: "Alibaba Cloud SMS"},
+        {id: "Amazon SNS", name: "Amazon SNS"},
+        {id: "Azure ACS", name: "Azure ACS"},
+        {id: "Infobip SMS", name: "Infobip SMS"},
         {id: "Tencent Cloud SMS", name: "Tencent Cloud SMS"},
+        {id: "Baidu Cloud SMS", name: "Baidu Cloud SMS"},
         {id: "Volc Engine SMS", name: "Volc Engine SMS"},
         {id: "Huawei Cloud SMS", name: "Huawei Cloud SMS"},
+        {id: "UCloud SMS", name: "UCloud SMS"},
         {id: "Twilio SMS", name: "Twilio SMS"},
         {id: "SmsBao SMS", name: "SmsBao SMS"},
         {id: "SUBMAIL SMS", name: "SUBMAIL SMS"},
+        {id: "Msg91 SMS", name: "Msg91 SMS"},
       ]
     );
   } else if (category === "Storage") {
@@ -860,9 +1003,11 @@ export function getProviderTypeOptions(category) {
         {id: "Local File System", name: "Local File System"},
         {id: "AWS S3", name: "AWS S3"},
         {id: "MinIO", name: "MinIO"},
-        {id: "Aliyun OSS", name: "Aliyun OSS"},
+        {id: "Aliyun OSS", name: "Alibaba Cloud OSS"},
         {id: "Tencent Cloud COS", name: "Tencent Cloud COS"},
         {id: "Azure Blob", name: "Azure Blob"},
+        {id: "Qiniu Cloud Kodo", name: "Qiniu Cloud Kodo"},
+        {id: "Google Cloud Storage", name: "Google Cloud Storage"},
       ]
     );
   } else if (category === "SAML") {
@@ -876,6 +1021,7 @@ export function getProviderTypeOptions(category) {
       {id: "Alipay", name: "Alipay"},
       {id: "WeChat Pay", name: "WeChat Pay"},
       {id: "PayPal", name: "PayPal"},
+      {id: "Stripe", name: "Stripe"},
       {id: "GC", name: "GC"},
     ]);
   } else if (category === "Captcha") {
@@ -887,9 +1033,31 @@ export function getProviderTypeOptions(category) {
       {id: "GEETEST", name: "GEETEST"},
       {id: "Cloudflare Turnstile", name: "Cloudflare Turnstile"},
     ]);
-  } else if (category === "AI") {
+  } else if (category === "Web3") {
     return ([
-      {id: "OpenAI API - GPT", name: "OpenAI API - GPT"},
+      {id: "MetaMask", name: "MetaMask"},
+      {id: "Web3Onboard", name: "Web3-Onboard"},
+    ]);
+  } else if (category === "Notification") {
+    return ([
+      {id: "Telegram", name: "Telegram"},
+      {id: "Custom HTTP", name: "Custom HTTP"},
+      {id: "DingTalk", name: "DingTalk"},
+      {id: "Lark", name: "Lark"},
+      {id: "Microsoft Teams", name: "Microsoft Teams"},
+      {id: "Bark", name: "Bark"},
+      {id: "Pushover", name: "Pushover"},
+      {id: "Pushbullet", name: "Pushbullet"},
+      {id: "Slack", name: "Slack"},
+      {id: "Webpush", name: "Webpush"},
+      {id: "Discord", name: "Discord"},
+      {id: "Google Chat", name: "Google Chat"},
+      {id: "Line", name: "Line"},
+      {id: "Matrix", name: "Matrix"},
+      {id: "Twitter", name: "Twitter"},
+      {id: "Reddit", name: "Reddit"},
+      {id: "Rocket Chat", name: "Rocket Chat"},
+      {id: "Viber", name: "Viber"},
     ]);
   } else {
     return [];
@@ -1035,13 +1203,7 @@ export function getLabel(text, tooltip) {
 }
 
 export function getItem(label, key, icon, children, type) {
-  return {
-    key,
-    icon,
-    children,
-    label,
-    type,
-  };
+  return {label: label, key: key, icon: icon, children: children, type: type};
 }
 
 export function getOption(label, value) {
@@ -1049,42 +1211,6 @@ export function getOption(label, value) {
     label,
     value,
   };
-}
-
-function repeat(str, len) {
-  while (str.length < len) {
-    str += str.substr(0, len - str.length);
-  }
-  return str;
-}
-
-function maskString(s) {
-  if (s.length <= 2) {
-    return s;
-  } else {
-    return `${s[0]}${repeat("*", s.length - 2)}${s[s.length - 1]}`;
-  }
-}
-
-export function getMaskedPhone(s) {
-  return s.replace(/(\d{3})\d*(\d{4})/, "$1****$2");
-}
-
-export function getMaskedEmail(email) {
-  if (email === "") {return;}
-  const tokens = email.split("@");
-  let username = tokens[0];
-  username = maskString(username);
-
-  const domain = tokens[1];
-  const domainTokens = domain.split(".");
-  domainTokens[domainTokens.length - 2] = maskString(domainTokens[domainTokens.length - 2]);
-
-  return `${username}@${domainTokens.join(".")}`;
-}
-
-export function IsEmail(s) {
-  return s.includes("@");
 }
 
 export function getArrayItem(array, key, value) {
@@ -1136,16 +1262,12 @@ export function getTags(tags, urlPrefix = null) {
   return res;
 }
 
-export function getTag(color, text) {
+export function getTag(color, text, icon) {
   return (
-    <Tag color={color}>
+    <Tag color={color} icon={icon}>
       {text}
     </Tag>
   );
-}
-
-export function getApplicationOrgName(application) {
-  return `${application?.organizationObj.owner}/${application?.organizationObj.name}`;
 }
 
 export function getApplicationName(application) {
@@ -1207,4 +1329,30 @@ export function isDefaultOrganizationSelected(account) {
     return getOrganization() === "All";
   }
   return false;
+}
+
+const BuiltInObjects = [
+  "api-enforcer-built-in",
+  "user-enforcer-built-in",
+  "api-model-built-in",
+  "user-model-built-in",
+  "api-adapter-built-in",
+  "user-adapter-built-in",
+];
+
+export function builtInObject(obj) {
+  if (obj === undefined || obj === null) {
+    return false;
+  }
+  return obj.owner === "built-in" && BuiltInObjects.includes(obj.name);
+}
+
+export function getCurrencySymbol(currency) {
+  if (currency === "USD" || currency === "usd") {
+    return "$";
+  } else if (currency === "CNY" || currency === "cny") {
+    return "¥";
+  } else {
+    return currency;
+  }
 }

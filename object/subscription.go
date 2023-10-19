@@ -18,47 +18,108 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/casdoor/casdoor/pp"
+
 	"github.com/casdoor/casdoor/util"
 	"github.com/xorm-io/core"
 )
 
-const defaultStatus = "Pending"
+type SubscriptionState string
+
+const (
+	SubStatePending   SubscriptionState = "Pending"
+	SubStateError     SubscriptionState = "Error"
+	SubStateSuspended SubscriptionState = "Suspended" // suspended by the admin
+
+	SubStateActive   SubscriptionState = "Active"
+	SubStateUpcoming SubscriptionState = "Upcoming"
+	SubStateExpired  SubscriptionState = "Expired"
+)
 
 type Subscription struct {
 	Owner       string `xorm:"varchar(100) notnull pk" json:"owner"`
 	Name        string `xorm:"varchar(100) notnull pk" json:"name"`
-	CreatedTime string `xorm:"varchar(100)" json:"createdTime"`
 	DisplayName string `xorm:"varchar(100)" json:"displayName"`
+	CreatedTime string `xorm:"varchar(100)" json:"createdTime"`
+	Description string `xorm:"varchar(100)" json:"description"`
 
-	StartDate   time.Time `json:"startDate"`
-	EndDate     time.Time `json:"endDate"`
-	Duration    int       `json:"duration"`
-	Description string    `xorm:"varchar(100)" json:"description"`
+	User    string `xorm:"varchar(100)" json:"user"`
+	Pricing string `xorm:"varchar(100)" json:"pricing"`
+	Plan    string `xorm:"varchar(100)" json:"plan"`
+	Payment string `xorm:"varchar(100)" json:"payment"`
 
-	User string `xorm:"mediumtext" json:"user"`
-	Plan string `xorm:"varchar(100)" json:"plan"`
-
-	IsEnabled   bool   `json:"isEnabled"`
-	Submitter   string `xorm:"varchar(100)" json:"submitter"`
-	Approver    string `xorm:"varchar(100)" json:"approver"`
-	ApproveTime string `xorm:"varchar(100)" json:"approveTime"`
-
-	State string `xorm:"varchar(100)" json:"state"`
+	StartTime time.Time         `json:"startTime"`
+	EndTime   time.Time         `json:"endTime"`
+	Period    string            `xorm:"varchar(100)" json:"period"`
+	State     SubscriptionState `xorm:"varchar(100)" json:"state"`
 }
 
-func NewSubscription(owner string, user string, plan string, duration int) *Subscription {
+func (sub *Subscription) GetId() string {
+	return fmt.Sprintf("%s/%s", sub.Owner, sub.Name)
+}
+
+func (sub *Subscription) UpdateState() error {
+	preState := sub.State
+	// update subscription state by payment state
+	if sub.State == SubStatePending {
+		if sub.Payment == "" {
+			return nil
+		}
+		payment, err := GetPayment(util.GetId(sub.Owner, sub.Payment))
+		if err != nil {
+			return err
+		}
+		if payment == nil {
+			sub.Description = fmt.Sprintf("payment: %s does not exist", sub.Payment)
+			sub.State = SubStateError
+		} else {
+			if payment.State == pp.PaymentStatePaid {
+				sub.State = SubStateActive
+			} else if payment.State != pp.PaymentStateCreated {
+				// other states: Canceled, Timeout, Error
+				sub.Description = fmt.Sprintf("payment: %s state is %v", sub.Payment, payment.State)
+				sub.State = SubStateError
+			}
+		}
+	}
+
+	if sub.State == SubStateActive || sub.State == SubStateUpcoming || sub.State == SubStateExpired {
+		if sub.EndTime.Before(time.Now()) {
+			sub.State = SubStateExpired
+		} else if sub.StartTime.After(time.Now()) {
+			sub.State = SubStateUpcoming
+		} else {
+			sub.State = SubStateActive
+		}
+	}
+
+	if preState != sub.State {
+		_, err := UpdateSubscription(sub.GetId(), sub)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func NewSubscription(owner, userName, planName, paymentName, period string) *Subscription {
+	startTime, endTime := GetDuration(period)
 	id := util.GenerateId()[:6]
 	return &Subscription{
-		Name:        "Subscription_" + id,
-		DisplayName: "New Subscription - " + id,
 		Owner:       owner,
-		User:        owner + "/" + user,
-		Plan:        owner + "/" + plan,
+		Name:        "sub_" + id,
+		DisplayName: "New Subscription - " + id,
 		CreatedTime: util.GetCurrentTime(),
-		State:       defaultStatus,
-		Duration:    duration,
-		StartDate:   time.Now(),
-		EndDate:     time.Now().AddDate(0, 0, duration),
+
+		User:    userName,
+		Plan:    planName,
+		Payment: paymentName,
+
+		StartTime: startTime,
+		EndTime:   endTime,
+		Period:    period,
+		State:     SubStatePending, // waiting for payment complete
 	}
 }
 
@@ -69,11 +130,32 @@ func GetSubscriptionCount(owner, field, value string) (int64, error) {
 
 func GetSubscriptions(owner string) ([]*Subscription, error) {
 	subscriptions := []*Subscription{}
-	err := adapter.Engine.Desc("created_time").Find(&subscriptions, &Subscription{Owner: owner})
+	err := ormer.Engine.Desc("created_time").Find(&subscriptions, &Subscription{Owner: owner})
 	if err != nil {
 		return subscriptions, err
 	}
+	for _, sub := range subscriptions {
+		err = sub.UpdateState()
+		if err != nil {
+			return nil, err
+		}
+	}
+	return subscriptions, nil
+}
 
+func GetSubscriptionsByUser(owner, userName string) ([]*Subscription, error) {
+	subscriptions := []*Subscription{}
+	err := ormer.Engine.Desc("created_time").Find(&subscriptions, &Subscription{Owner: owner, User: userName})
+	if err != nil {
+		return subscriptions, err
+	}
+	// update subscription state
+	for _, sub := range subscriptions {
+		err = sub.UpdateState()
+		if err != nil {
+			return subscriptions, err
+		}
+	}
 	return subscriptions, nil
 }
 
@@ -84,7 +166,12 @@ func GetPaginationSubscriptions(owner string, offset, limit int, field, value, s
 	if err != nil {
 		return subscriptions, err
 	}
-
+	for _, sub := range subscriptions {
+		err = sub.UpdateState()
+		if err != nil {
+			return nil, err
+		}
+	}
 	return subscriptions, nil
 }
 
@@ -94,7 +181,7 @@ func getSubscription(owner string, name string) (*Subscription, error) {
 	}
 
 	subscription := Subscription{Owner: owner, Name: name}
-	existed, err := adapter.Engine.Get(&subscription)
+	existed, err := ormer.Engine.Get(&subscription)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +206,7 @@ func UpdateSubscription(id string, subscription *Subscription) (bool, error) {
 		return false, nil
 	}
 
-	affected, err := adapter.Engine.ID(core.PK{owner, name}).AllCols().Update(subscription)
+	affected, err := ormer.Engine.ID(core.PK{owner, name}).AllCols().Update(subscription)
 	if err != nil {
 		return false, err
 	}
@@ -128,7 +215,7 @@ func UpdateSubscription(id string, subscription *Subscription) (bool, error) {
 }
 
 func AddSubscription(subscription *Subscription) (bool, error) {
-	affected, err := adapter.Engine.Insert(subscription)
+	affected, err := ormer.Engine.Insert(subscription)
 	if err != nil {
 		return false, err
 	}
@@ -137,14 +224,10 @@ func AddSubscription(subscription *Subscription) (bool, error) {
 }
 
 func DeleteSubscription(subscription *Subscription) (bool, error) {
-	affected, err := adapter.Engine.ID(core.PK{subscription.Owner, subscription.Name}).Delete(&Subscription{})
+	affected, err := ormer.Engine.ID(core.PK{subscription.Owner, subscription.Name}).Delete(&Subscription{})
 	if err != nil {
 		return false, err
 	}
 
 	return affected != 0, nil
-}
-
-func (subscription *Subscription) GetId() string {
-	return fmt.Sprintf("%s/%s", subscription.Owner, subscription.Name)
 }

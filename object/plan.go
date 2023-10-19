@@ -16,6 +16,7 @@ package object
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/casdoor/casdoor/util"
 	"github.com/xorm-io/core"
@@ -28,13 +29,37 @@ type Plan struct {
 	DisplayName string `xorm:"varchar(100)" json:"displayName"`
 	Description string `xorm:"varchar(100)" json:"description"`
 
-	PricePerMonth float64 `json:"pricePerMonth"`
-	PricePerYear  float64 `json:"pricePerYear"`
-	Currency      string  `xorm:"varchar(100)" json:"currency"`
-	IsEnabled     bool    `json:"isEnabled"`
+	Price            float64  `json:"price"`
+	Currency         string   `xorm:"varchar(100)" json:"currency"`
+	Period           string   `xorm:"varchar(100)" json:"period"`
+	Product          string   `xorm:"varchar(100)" json:"product"`
+	PaymentProviders []string `xorm:"varchar(100)" json:"paymentProviders"` // payment providers for related product
+	IsEnabled        bool     `json:"isEnabled"`
 
 	Role    string   `xorm:"varchar(100)" json:"role"`
 	Options []string `xorm:"-" json:"options"`
+}
+
+const (
+	PeriodMonthly = "Monthly"
+	PeriodYearly  = "Yearly"
+)
+
+func (plan *Plan) GetId() string {
+	return fmt.Sprintf("%s/%s", plan.Owner, plan.Name)
+}
+
+func GetDuration(period string) (startTime time.Time, endTime time.Time) {
+	if period == PeriodYearly {
+		startTime = time.Now()
+		endTime = startTime.AddDate(1, 0, 0)
+	} else if period == PeriodMonthly {
+		startTime = time.Now()
+		endTime = startTime.AddDate(0, 1, 0)
+	} else {
+		panic(fmt.Sprintf("invalid period: %s", period))
+	}
+	return
 }
 
 func GetPlanCount(owner, field, value string) (int64, error) {
@@ -44,7 +69,7 @@ func GetPlanCount(owner, field, value string) (int64, error) {
 
 func GetPlans(owner string) ([]*Plan, error) {
 	plans := []*Plan{}
-	err := adapter.Engine.Desc("created_time").Find(&plans, &Plan{Owner: owner})
+	err := ormer.Engine.Desc("created_time").Find(&plans, &Plan{Owner: owner})
 	if err != nil {
 		return plans, err
 	}
@@ -67,7 +92,7 @@ func getPlan(owner, name string) (*Plan, error) {
 	}
 
 	plan := Plan{Owner: owner, Name: name}
-	existed, err := adapter.Engine.Get(&plan)
+	existed, err := ormer.Engine.Get(&plan)
 	if err != nil {
 		return &plan, err
 	}
@@ -91,7 +116,7 @@ func UpdatePlan(id string, plan *Plan) (bool, error) {
 		return false, nil
 	}
 
-	affected, err := adapter.Engine.ID(core.PK{owner, name}).AllCols().Update(plan)
+	affected, err := ormer.Engine.ID(core.PK{owner, name}).AllCols().Update(plan)
 	if err != nil {
 		return false, err
 	}
@@ -100,7 +125,7 @@ func UpdatePlan(id string, plan *Plan) (bool, error) {
 }
 
 func AddPlan(plan *Plan) (bool, error) {
-	affected, err := adapter.Engine.Insert(plan)
+	affected, err := ormer.Engine.Insert(plan)
 	if err != nil {
 		return false, err
 	}
@@ -108,44 +133,9 @@ func AddPlan(plan *Plan) (bool, error) {
 }
 
 func DeletePlan(plan *Plan) (bool, error) {
-	affected, err := adapter.Engine.ID(core.PK{plan.Owner, plan.Name}).Delete(plan)
+	affected, err := ormer.Engine.ID(core.PK{plan.Owner, plan.Name}).Delete(plan)
 	if err != nil {
 		return false, err
 	}
 	return affected != 0, nil
-}
-
-func (plan *Plan) GetId() string {
-	return fmt.Sprintf("%s/%s", plan.Owner, plan.Name)
-}
-
-func Subscribe(owner string, user string, plan string, pricing string) (*Subscription, error) {
-	selectedPricing, err := GetPricing(fmt.Sprintf("%s/%s", owner, pricing))
-	if err != nil {
-		return nil, err
-	}
-
-	valid := selectedPricing != nil && selectedPricing.IsEnabled
-
-	if !valid {
-		return nil, nil
-	}
-
-	planBelongToPricing, err := selectedPricing.HasPlan(owner, plan)
-	if err != nil {
-		return nil, err
-	}
-
-	if planBelongToPricing {
-		newSubscription := NewSubscription(owner, user, plan, selectedPricing.TrialDuration)
-		affected, err := AddSubscription(newSubscription)
-		if err != nil {
-			return nil, err
-		}
-
-		if affected {
-			return newSubscription, nil
-		}
-	}
-	return nil, nil
 }

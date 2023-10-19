@@ -18,60 +18,21 @@ import (
 	"strings"
 
 	"github.com/casbin/casbin/v2"
-	"github.com/casbin/casbin/v2/model"
 	"github.com/casdoor/casdoor/conf"
 	"github.com/casdoor/casdoor/object"
 	"github.com/casdoor/casdoor/util"
-	xormadapter "github.com/casdoor/xorm-adapter/v3"
 	stringadapter "github.com/qiangmzsx/string-adapter/v2"
 )
 
 var Enforcer *casbin.Enforcer
 
-func InitAuthz() {
-	var err error
-
-	tableNamePrefix := conf.GetConfigString("tableNamePrefix")
-	driverName := conf.GetConfigString("driverName")
-	dataSourceName := conf.GetConfigRealDataSourceName(driverName)
-	a, err := xormadapter.NewAdapterWithTableName(driverName, dataSourceName, "casbin_rule", tableNamePrefix, true)
+func InitApi() {
+	e, err := object.GetInitializedEnforcer(util.GetId("built-in", "api-enforcer-built-in"))
 	if err != nil {
 		panic(err)
 	}
 
-	modelText := `
-[request_definition]
-r = subOwner, subName, method, urlPath, objOwner, objName
-
-[policy_definition]
-p = subOwner, subName, method, urlPath, objOwner, objName
-
-[role_definition]
-g = _, _
-
-[policy_effect]
-e = some(where (p.eft == allow))
-
-[matchers]
-m = (r.subOwner == p.subOwner || p.subOwner == "*") && \
-    (r.subName == p.subName || p.subName == "*" || r.subName != "anonymous" && p.subName == "!anonymous") && \
-    (r.method == p.method || p.method == "*") && \
-    (r.urlPath == p.urlPath || p.urlPath == "*") && \
-    (r.objOwner == p.objOwner || p.objOwner == "*") && \
-    (r.objName == p.objName || p.objName == "*") || \
-    (r.subOwner == r.objOwner && r.subName == r.objName)
-`
-
-	m, err := model.NewModelFromString(modelText)
-	if err != nil {
-		panic(err)
-	}
-
-	Enforcer, err = casbin.NewEnforcer(m, a)
-	if err != nil {
-		panic(err)
-	}
-
+	Enforcer = e.Enforcer
 	Enforcer.ClearPolicy()
 
 	// if len(Enforcer.GetPolicy()) == 0 {
@@ -85,6 +46,7 @@ p, *, *, POST, /api/login, *, *
 p, *, *, GET, /api/get-app-login, *, *
 p, *, *, POST, /api/logout, *, *
 p, *, *, GET, /api/logout, *, *
+p, *, *, POST, /api/callback, *, *
 p, *, *, GET, /api/get-account, *, *
 p, *, *, GET, /api/userinfo, *, *
 p, *, *, GET, /api/user, *, *
@@ -119,6 +81,7 @@ p, *, *, GET, /api/get-saml-login, *, *
 p, *, *, POST, /api/acs, *, *
 p, *, *, GET, /api/saml/metadata, *, *
 p, *, *, *, /cas, *, *
+p, *, *, *, /scim, *, *
 p, *, *, *, /api/webauthn, *, *
 p, *, *, GET, /api/get-release, *, *
 p, *, *, GET, /api/get-default-application, *, *
@@ -126,6 +89,8 @@ p, *, *, GET, /api/get-prometheus-info, *, *
 p, *, *, *, /api/metrics, *, *
 p, *, *, GET, /api/get-pricing, *, *
 p, *, *, GET, /api/get-plan, *, *
+p, *, *, GET, /api/get-subscription, *, *
+p, *, *, GET, /api/get-provider, *, *
 p, *, *, GET, /api/get-organization-names, *, *
 `
 
@@ -156,6 +121,10 @@ func IsAllowed(subOwner string, subName string, method string, urlPath string, o
 	user, err := object.GetUser(util.GetId(subOwner, subName))
 	if err != nil {
 		panic(err)
+	}
+
+	if subOwner == "app" {
+		return true
 	}
 
 	if user != nil && user.IsAdmin && (subOwner == objOwner || (objOwner == "admin")) {

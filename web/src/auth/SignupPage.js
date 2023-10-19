@@ -114,7 +114,7 @@ class SignupPage extends React.Component {
           return;
         }
 
-        this.onUpdateApplication(res);
+        this.onUpdateApplication(res.data);
       });
   }
 
@@ -133,7 +133,11 @@ class SignupPage extends React.Component {
       });
   }
 
-  getResultPath(application) {
+  getResultPath(application, signupParams) {
+    if (signupParams?.plan && signupParams?.pricing) {
+      // the prompt page needs the user to be signed in, so for paid-user sign up, just go to buy-plan page
+      return `/buy-plan/${application.organization}/${signupParams?.pricing}?user=${signupParams.username}&plan=${signupParams.plan}`;
+    }
     if (authConfig.appName === application.name) {
       return "/result";
     } else {
@@ -173,13 +177,14 @@ class SignupPage extends React.Component {
     const application = this.getApplicationObj();
 
     const params = new URLSearchParams(window.location.search);
-    values["plan"] = params.get("plan");
-    values["pricing"] = params.get("pricing");
-
+    values.plan = params.get("plan");
+    values.pricing = params.get("pricing");
     AuthBackend.signup(values)
       .then((res) => {
         if (res.status === "ok") {
-          if (Setting.hasPromptPage(application)) {
+          // the user's id will be returned by `signup()`, if user signup by phone, the `username` in `values` is undefined.
+          values.username = res.data.split("/")[1];
+          if (Setting.hasPromptPage(application) && (!values.plan || !values.pricing)) {
             AuthBackend.getAccount("")
               .then((res) => {
                 let account = null;
@@ -188,13 +193,13 @@ class SignupPage extends React.Component {
                   account.organization = res.data2;
 
                   this.onUpdateAccount(account);
-                  Setting.goToLinkSoft(this, this.getResultPath(application));
+                  Setting.goToLinkSoft(this, this.getResultPath(application, values));
                 } else {
                   Setting.showMessage("error", `${i18next.t("application:Failed to sign in")}: ${res.msg}`);
                 }
               });
           } else {
-            Setting.goToLinkSoft(this, this.getResultPath(application));
+            Setting.goToLinkSoft(this, this.getResultPath(application, values));
           }
         } else {
           Setting.showMessage("error", i18next.t(`signup:${res.msg}`));
@@ -221,7 +226,7 @@ class SignupPage extends React.Component {
       return (
         <Form.Item
           name="username"
-          label={i18next.t("signup:Username")}
+          label={signupItem.label ? signupItem.label : i18next.t("signup:Username")}
           rules={[
             {
               required: required,
@@ -230,7 +235,7 @@ class SignupPage extends React.Component {
             },
           ]}
         >
-          <Input />
+          <Input placeholder={signupItem.placeholder} />
         </Form.Item>
       );
     } else if (signupItem.name === "Display name") {
@@ -239,7 +244,7 @@ class SignupPage extends React.Component {
           <React.Fragment>
             <Form.Item
               name="firstName"
-              label={i18next.t("general:First name")}
+              label={signupItem.label ? signupItem.label : i18next.t("general:First name")}
               rules={[
                 {
                   required: required,
@@ -248,11 +253,11 @@ class SignupPage extends React.Component {
                 },
               ]}
             >
-              <Input />
+              <Input placeholder={signupItem.placeholder} />
             </Form.Item>
             <Form.Item
               name="lastName"
-              label={i18next.t("general:Last name")}
+              label={signupItem.label ? signupItem.label : i18next.t("general:Last name")}
               rules={[
                 {
                   required: required,
@@ -261,7 +266,7 @@ class SignupPage extends React.Component {
                 },
               ]}
             >
-              <Input />
+              <Input placeholder={signupItem.placeholder} />
             </Form.Item>
           </React.Fragment>
         );
@@ -270,7 +275,7 @@ class SignupPage extends React.Component {
       return (
         <Form.Item
           name="name"
-          label={(signupItem.rule === "Real name" || signupItem.rule === "First, last") ? i18next.t("general:Real name") : i18next.t("general:Display name")}
+          label={(signupItem.label ? signupItem.label : (signupItem.rule === "Real name" || signupItem.rule === "First, last") ? i18next.t("general:Real name") : i18next.t("general:Display name"))}
           rules={[
             {
               required: required,
@@ -279,14 +284,14 @@ class SignupPage extends React.Component {
             },
           ]}
         >
-          <Input />
+          <Input placeholder={signupItem.placeholder} />
         </Form.Item>
       );
     } else if (signupItem.name === "Affiliation") {
       return (
         <Form.Item
           name="affiliation"
-          label={i18next.t("user:Affiliation")}
+          label={signupItem.label ? signupItem.label : i18next.t("user:Affiliation")}
           rules={[
             {
               required: required,
@@ -295,14 +300,14 @@ class SignupPage extends React.Component {
             },
           ]}
         >
-          <Input />
+          <Input placeholder={signupItem.placeholder} />
         </Form.Item>
       );
     } else if (signupItem.name === "ID card") {
       return (
         <Form.Item
           name="idCard"
-          label={i18next.t("user:ID card")}
+          label={signupItem.label ? signupItem.label : i18next.t("user:ID card")}
           rules={[
             {
               required: required,
@@ -316,14 +321,14 @@ class SignupPage extends React.Component {
             },
           ]}
         >
-          <Input />
+          <Input placeholder={signupItem.placeholder} />
         </Form.Item>
       );
     } else if (signupItem.name === "Country/Region") {
       return (
         <Form.Item
           name="country_region"
-          label={i18next.t("user:Country/Region")}
+          label={signupItem.label ? signupItem.label : i18next.t("user:Country/Region")}
           rules={[
             {
               required: required,
@@ -339,7 +344,7 @@ class SignupPage extends React.Component {
         <React.Fragment>
           <Form.Item
             name="email"
-            label={i18next.t("general:Email")}
+            label={signupItem.label ? signupItem.label : i18next.t("general:Email")}
             rules={[
               {
                 required: required,
@@ -358,13 +363,13 @@ class SignupPage extends React.Component {
               },
             ]}
           >
-            <Input onChange={e => this.setState({email: e.target.value})} />
+            <Input placeholder={signupItem.placeholder} onChange={e => this.setState({email: e.target.value})} />
           </Form.Item>
           {
             signupItem.rule !== "No verification" &&
             <Form.Item
               name="emailCode"
-              label={i18next.t("code:Email code")}
+              label={signupItem.label ? signupItem.label : i18next.t("code:Email code")}
               rules={[{
                 required: required,
                 message: i18next.t("code:Please input your verification code!"),
@@ -383,7 +388,7 @@ class SignupPage extends React.Component {
     } else if (signupItem.name === "Phone") {
       return (
         <React.Fragment>
-          <Form.Item label={i18next.t("general:Phone")} required={required}>
+          <Form.Item label={signupItem.label ? signupItem.label : i18next.t("general:Phone")} required={required}>
             <Input.Group compact>
               <Form.Item
                 name="countryCode"
@@ -427,6 +432,7 @@ class SignupPage extends React.Component {
                 ]}
               >
                 <Input
+                  placeholder={signupItem.placeholder}
                   style={{width: "65%"}}
                   onChange={e => this.setState({phone: e.target.value})}
                 />
@@ -437,7 +443,7 @@ class SignupPage extends React.Component {
             signupItem.rule !== "No verification" &&
             <Form.Item
               name="phoneCode"
-              label={i18next.t("code:Phone code")}
+              label={signupItem.label ? signupItem.label : i18next.t("code:Phone code")}
               rules={[
                 {
                   required: required,
@@ -460,7 +466,7 @@ class SignupPage extends React.Component {
       return (
         <Form.Item
           name="password"
-          label={i18next.t("general:Password")}
+          label={signupItem.label ? signupItem.label : i18next.t("general:Password")}
           rules={[
             {
               required: required,
@@ -477,14 +483,14 @@ class SignupPage extends React.Component {
           ]}
           hasFeedback
         >
-          <Input.Password />
+          <Input.Password placeholder={signupItem.placeholder} />
         </Form.Item>
       );
     } else if (signupItem.name === "Confirm password") {
       return (
         <Form.Item
           name="confirm"
-          label={i18next.t("signup:Confirm")}
+          label={signupItem.label ? signupItem.label : i18next.t("signup:Confirm")}
           dependencies={["password"]}
           hasFeedback
           rules={[
@@ -503,11 +509,30 @@ class SignupPage extends React.Component {
             }),
           ]}
         >
-          <Input.Password />
+          <Input.Password placeholder={signupItem.placeholder} />
+        </Form.Item>
+      );
+    } else if (signupItem.name === "Invitation code") {
+      return (
+        <Form.Item
+          name="invitationCode"
+          label={signupItem.label ? signupItem.label : i18next.t("application:Invitation code")}
+          rules={[
+            {
+              required: required,
+              message: i18next.t("signup:Please input your invitation code!"),
+            },
+          ]}
+        >
+          <Input placeholder={signupItem.placeholder} />
         </Form.Item>
       );
     } else if (signupItem.name === "Agreement") {
       return AgreementModal.renderAgreementFormItem(application, required, tailFormItemLayout, this);
+    } else if (signupItem.name.startsWith("Text ")) {
+      return (
+        <div dangerouslySetInnerHTML={{__html: signupItem.label}} />
+      );
     }
   }
 

@@ -15,12 +15,12 @@
 package object
 
 import (
+	"database/sql"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/casdoor/casdoor/util"
-	"github.com/xorm-io/core"
 )
 
 type OriginalUser = User
@@ -31,8 +31,8 @@ type Credential struct {
 }
 
 func (syncer *Syncer) getOriginalUsers() ([]*OriginalUser, error) {
-	sql := fmt.Sprintf("select * from %s", syncer.getTable())
-	results, err := syncer.Adapter.Engine.QueryString(sql)
+	var results []map[string]sql.NullString
+	err := syncer.Ormer.Engine.Table(syncer.getTable()).Find(&results)
 	if err != nil {
 		return nil, err
 	}
@@ -49,46 +49,14 @@ func (syncer *Syncer) getOriginalUsers() ([]*OriginalUser, error) {
 	return users, nil
 }
 
-func (syncer *Syncer) getOriginalUserMap() ([]*OriginalUser, map[string]*OriginalUser, error) {
-	users, err := syncer.getOriginalUsers()
-	if err != nil {
-		return users, nil, err
-	}
-
-	m := map[string]*OriginalUser{}
-	for _, user := range users {
-		m[user.Id] = user
-	}
-	return users, m, nil
-}
-
 func (syncer *Syncer) addUser(user *OriginalUser) (bool, error) {
 	m := syncer.getMapFromOriginalUser(user)
-	keyString, valueString := syncer.getSqlKeyValueStringFromMap(m)
-
-	sql := fmt.Sprintf("insert into %s (%s) values (%s)", syncer.getTable(), keyString, valueString)
-	res, err := syncer.Adapter.Engine.Exec(sql)
+	affected, err := syncer.Ormer.Engine.Table(syncer.getTable()).Insert(m)
 	if err != nil {
 		return false, err
 	}
-
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return false, err
-	}
-
 	return affected != 0, nil
 }
-
-/*func (syncer *Syncer) getOriginalColumns() []string {
-	res := []string{}
-	for _, tableColumn := range syncer.TableColumns {
-		if tableColumn.CasdoorName != "Id" {
-			res = append(res, tableColumn.Name)
-		}
-	}
-	return res
-}*/
 
 func (syncer *Syncer) getCasdoorColumns() []string {
 	res := []string{}
@@ -102,31 +70,28 @@ func (syncer *Syncer) getCasdoorColumns() []string {
 }
 
 func (syncer *Syncer) updateUser(user *OriginalUser) (bool, error) {
+	key := syncer.getKey()
 	m := syncer.getMapFromOriginalUser(user)
-	pkValue := m[syncer.TablePrimaryKey]
-	delete(m, syncer.TablePrimaryKey)
-	setString := syncer.getSqlSetStringFromMap(m)
+	pkValue := m[key]
+	delete(m, key)
 
-	sql := fmt.Sprintf("update %s set %s where %s = %s", syncer.getTable(), setString, syncer.TablePrimaryKey, pkValue)
-	res, err := syncer.Adapter.Engine.Exec(sql)
+	affected, err := syncer.Ormer.Engine.Table(syncer.getTable()).Where(fmt.Sprintf("%s = ?", key), pkValue).Update(&m)
 	if err != nil {
 		return false, err
 	}
-
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return false, err
-	}
-
 	return affected != 0, nil
 }
 
-func (syncer *Syncer) updateUserForOriginalFields(user *User) (bool, error) {
+func (syncer *Syncer) updateUserForOriginalFields(user *User, key string) (bool, error) {
 	var err error
-	owner, name := util.GetOwnerAndNameFromId(user.GetId())
-	oldUser, err := getUserById(owner, name)
-	if oldUser == nil || err != nil {
+	oldUser := User{}
+
+	existed, err := ormer.Engine.Where(key+" = ? and owner = ?", syncer.getUserValue(user, key), user.Owner).Get(&oldUser)
+	if err != nil {
 		return false, err
+	}
+	if !existed {
+		return false, nil
 	}
 
 	if user.Avatar != oldUser.Avatar && user.Avatar != "" {
@@ -138,7 +103,7 @@ func (syncer *Syncer) updateUserForOriginalFields(user *User) (bool, error) {
 
 	columns := syncer.getCasdoorColumns()
 	columns = append(columns, "affiliation", "hash", "pre_hash")
-	affected, err := adapter.Engine.ID(core.PK{oldUser.Owner, oldUser.Name}).Cols(columns...).Update(user)
+	affected, err := ormer.Engine.Where(key+" = ? and owner = ?", syncer.getUserValue(&oldUser, key), oldUser.Owner).Cols(columns...).Update(user)
 	if err != nil {
 		return false, err
 	}
@@ -159,23 +124,31 @@ func (syncer *Syncer) calculateHash(user *OriginalUser) string {
 	return util.GetMd5Hash(s)
 }
 
-func (syncer *Syncer) initAdapter() {
-	if syncer.Adapter == nil {
-		var dataSourceName string
-		if syncer.DatabaseType == "mssql" {
-			dataSourceName = fmt.Sprintf("sqlserver://%s:%s@%s:%d?database=%s", syncer.User, syncer.Password, syncer.Host, syncer.Port, syncer.Database)
-		} else if syncer.DatabaseType == "postgres" {
-			dataSourceName = fmt.Sprintf("user=%s password=%s host=%s port=%d sslmode=disable dbname=%s", syncer.User, syncer.Password, syncer.Host, syncer.Port, syncer.Database)
-		} else {
-			dataSourceName = fmt.Sprintf("%s:%s@tcp(%s:%d)/", syncer.User, syncer.Password, syncer.Host, syncer.Port)
-		}
-
-		if !isCloudIntranet {
-			dataSourceName = strings.ReplaceAll(dataSourceName, "dbi.", "db.")
-		}
-
-		syncer.Adapter = NewAdapter(syncer.DatabaseType, dataSourceName, syncer.Database)
+func (syncer *Syncer) initAdapter() error {
+	if syncer.Ormer != nil {
+		return nil
 	}
+
+	var dataSourceName string
+	if syncer.DatabaseType == "mssql" {
+		dataSourceName = fmt.Sprintf("sqlserver://%s:%s@%s:%d?database=%s", syncer.User, syncer.Password, syncer.Host, syncer.Port, syncer.Database)
+	} else if syncer.DatabaseType == "postgres" {
+		sslMode := "disable"
+		if syncer.SslMode != "" {
+			sslMode = syncer.SslMode
+		}
+		dataSourceName = fmt.Sprintf("user=%s password=%s host=%s port=%d sslmode=%s dbname=%s", syncer.User, syncer.Password, syncer.Host, syncer.Port, sslMode, syncer.Database)
+	} else {
+		dataSourceName = fmt.Sprintf("%s:%s@tcp(%s:%d)/", syncer.User, syncer.Password, syncer.Host, syncer.Port)
+	}
+
+	if !isCloudIntranet {
+		dataSourceName = strings.ReplaceAll(dataSourceName, "dbi.", "db.")
+	}
+
+	var err error
+	syncer.Ormer, err = NewAdapter(syncer.DatabaseType, dataSourceName, syncer.Database)
+	return err
 }
 
 func RunSyncUsersJob() {
@@ -185,7 +158,10 @@ func RunSyncUsersJob() {
 	}
 
 	for _, syncer := range syncers {
-		addSyncerJob(syncer)
+		err = addSyncerJob(syncer)
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	time.Sleep(time.Duration(1<<63 - 1))

@@ -33,6 +33,7 @@ class PermissionListPage extends BaseListPage {
       createdTime: moment().format(),
       displayName: `New Permission - ${randomName}`,
       users: [`${this.props.account.owner}/${this.props.account.name}`],
+      groups: [],
       roles: [],
       domains: [],
       resourceType: "Application",
@@ -110,11 +111,12 @@ class PermissionListPage extends BaseListPage {
 
     return (
       <Upload {...props}>
-        <Button type="primary" size="small">
+        <Button id="upload-button" type="primary" size="small">
           <UploadOutlined /> {i18next.t("user:Upload (.xlsx)")}
         </Button></Upload>
     );
   }
+
   renderTable(permissions) {
     const columns = [
       // https://github.com/ant-design/ant-design/issues/22184
@@ -128,7 +130,7 @@ class PermissionListPage extends BaseListPage {
         ...this.getColumnSearchProps("name"),
         render: (text, record, index) => {
           return (
-            <Link to={`/permissions/${record.owner}/${text}`}>
+            <Link to={`/permissions/${record.owner}/${encodeURIComponent(text)}`}>
               {text}
             </Link>
           );
@@ -176,6 +178,17 @@ class PermissionListPage extends BaseListPage {
         ...this.getColumnSearchProps("users"),
         render: (text, record, index) => {
           return Setting.getTags(text, "users");
+        },
+      },
+      {
+        title: i18next.t("role:Sub groups"),
+        dataIndex: "groups",
+        key: "groups",
+        // width: '100px',
+        sorter: true,
+        ...this.getColumnSearchProps("groups"),
+        render: (text, record, index) => {
+          return Setting.getTags(text, "groups");
         },
       },
       {
@@ -285,6 +298,13 @@ class PermissionListPage extends BaseListPage {
         filterMultiple: false,
         width: "120px",
         sorter: true,
+        render: (text, record, index) => {
+          return (
+            <Link to={`/users/${record.owner}/${encodeURIComponent(text)}`}>
+              {text}
+            </Link>
+          );
+        },
       },
       {
         title: i18next.t("permission:Approver"),
@@ -293,6 +313,13 @@ class PermissionListPage extends BaseListPage {
         filterMultiple: false,
         width: "120px",
         sorter: true,
+        render: (text, record, index) => {
+          return (
+            <Link to={`/users/${record.owner}/${encodeURIComponent(text)}`}>
+              {text}
+            </Link>
+          );
+        },
       },
       {
         title: i18next.t("permission:Approve time"),
@@ -336,7 +363,7 @@ class PermissionListPage extends BaseListPage {
         render: (text, record, index) => {
           return (
             <div>
-              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.props.history.push(`/permissions/${record.owner}/${record.name}`)}>{i18next.t("general:Edit")}</Button>
+              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.props.history.push(`/permissions/${record.owner}/${encodeURIComponent(record.name)}`)}>{i18next.t("general:Edit")}</Button>
               <PopconfirmModal
                 title={i18next.t("general:Sure to delete") + `: ${record.name} ?`}
                 onConfirm={() => this.deletePermission(index)}
@@ -361,7 +388,7 @@ class PermissionListPage extends BaseListPage {
           title={() => (
             <div>
               {i18next.t("general:Permissions")}&nbsp;&nbsp;&nbsp;&nbsp;
-              <Button style={{marginRight: "5px"}} type="primary" size="small" onClick={this.addPermission.bind(this)}>{i18next.t("general:Add")}</Button>
+              <Button id="add-button" style={{marginRight: "5px"}} type="primary" size="small" onClick={this.addPermission.bind(this)}>{i18next.t("general:Add")}</Button>
               {
                 this.renderPermissionUpload()
               }

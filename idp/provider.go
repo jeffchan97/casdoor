@@ -109,6 +109,10 @@ func GetIdProvider(idpInfo *ProviderInfo, redirectUrl string) IdProvider {
 		return NewDouyinIdProvider(idpInfo.ClientId, idpInfo.ClientSecret, redirectUrl)
 	case "Bilibili":
 		return NewBilibiliIdProvider(idpInfo.ClientId, idpInfo.ClientSecret, redirectUrl)
+	case "MetaMask":
+		return NewMetaMaskIdProvider()
+	case "Web3Onboard":
+		return NewWeb3OnboardIdProvider()
 	default:
 		if isGothSupport(idpInfo.Type) {
 			return NewGothIdProvider(idpInfo.Type, idpInfo.ClientId, idpInfo.ClientSecret, redirectUrl, idpInfo.HostUrl)

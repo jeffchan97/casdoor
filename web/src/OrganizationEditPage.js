@@ -75,7 +75,7 @@ class OrganizationEditPage extends React.Component {
         }
 
         this.setState({
-          applications: res,
+          applications: res.data || [],
         });
       });
   }
@@ -314,6 +314,16 @@ class OrganizationEditPage extends React.Component {
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}} >
+          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+            {Setting.getLabel(i18next.t("general:Default password"), i18next.t("general:Default password - Tooltip"))} :
+          </Col>
+          <Col span={22} >
+            <Input value={this.state.organization.defaultPassword} onChange={e => {
+              this.updateOrganizationField("defaultPassword", e.target.value);
+            }} />
+          </Col>
+        </Row>
+        <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 19 : 2}>
             {Setting.getLabel(i18next.t("organization:Init score"), i18next.t("organization:Init score - Tooltip"))} :
           </Col>
@@ -411,7 +421,7 @@ class OrganizationEditPage extends React.Component {
     );
   }
 
-  submitOrganizationEdit(willExist) {
+  submitOrganizationEdit(exitAfterSave) {
     const organization = Setting.deepCopy(this.state.organization);
     organization.accountItems = organization.accountItems?.filter(accountItem => accountItem.name !== "Please select an account item");
 
@@ -429,7 +439,7 @@ class OrganizationEditPage extends React.Component {
           });
           window.dispatchEvent(new Event("storageOrganizationsChanged"));
 
-          if (willExist) {
+          if (exitAfterSave) {
             this.props.history.push("/organizations");
           } else {
             this.props.history.push(`/organizations/${this.state.organization.name}`);

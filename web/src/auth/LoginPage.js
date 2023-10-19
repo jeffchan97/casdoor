@@ -36,7 +36,7 @@ import {CaptchaModal} from "../common/modal/CaptchaModal";
 import {CaptchaRule} from "../common/modal/CaptchaModal";
 import RedirectForm from "../common/RedirectForm";
 import {MfaAuthVerifyForm, NextMfa, RequiredMfa} from "./mfa/MfaAuthVerifyForm";
-
+import {GoogleOneTapLoginVirtualButton} from "./GoogleLoginButton";
 class LoginPage extends React.Component {
   constructor(props) {
     super(props);
@@ -71,9 +71,9 @@ class LoginPage extends React.Component {
 
   componentDidMount() {
     if (this.getApplicationObj() === undefined) {
-      if (this.state.type === "login" || this.state.type === "cas" || this.state.type === "saml") {
+      if (this.state.type === "login" || this.state.type === "saml") {
         this.getApplication();
-      } else if (this.state.type === "code") {
+      } else if (this.state.type === "code" || this.state.type === "cas") {
         this.getApplicationLogin();
       } else {
         Setting.showMessage("error", `Unknown authentication type: ${this.state.type}`);
@@ -143,8 +143,8 @@ class LoginPage extends React.Component {
   }
 
   getApplicationLogin() {
-    const oAuthParams = Util.getOAuthGetParameters();
-    AuthBackend.getApplicationLogin(oAuthParams)
+    const loginParams = (this.state.type === "cas") ? Util.getCasLoginParameters("admin", this.state.applicationName) : Util.getOAuthGetParameters();
+    AuthBackend.getApplicationLogin(loginParams)
       .then((res) => {
         if (res.status === "ok") {
           const application = res.data;
@@ -167,10 +167,13 @@ class LoginPage extends React.Component {
       ApplicationBackend.getApplication("admin", this.state.applicationName)
         .then((res) => {
           if (res.status === "error") {
-            Setting.showMessage("error", res.msg);
-            return;
+            this.onUpdateApplication(null);
+            this.setState({
+              msg: res.msg,
+            });
+            return ;
           }
-          this.onUpdateApplication(res);
+          this.onUpdateApplication(res.data);
         });
     } else {
       OrganizationBackend.getDefaultApplication("admin", this.state.owner)
@@ -400,6 +403,14 @@ class LoginPage extends React.Component {
                     />);
                 },
               });
+            } else if (res.data === "SelectPlan") {
+              // paid-user does not have active or pending subscription, go to application default pricing page to select-plan
+              const pricing = res.data2;
+              Setting.goToLink(`/select-plan/${pricing.owner}/${pricing.name}?user=${values.username}`);
+            } else if (res.data === "BuyPlanResult") {
+              // paid-user has pending subscription, go to buy-plan/result apge to notify payment result
+              const sub = res.data2;
+              Setting.goToLink(`/buy-plan/${sub.owner}/${sub.pricing}/result?subscription=${sub.name}`);
             } else {
               callback(res);
             }
@@ -415,6 +426,16 @@ class LoginPage extends React.Component {
       return Setting.isProviderVisibleForSignUp(providerItem);
     } else {
       return Setting.isProviderVisibleForSignIn(providerItem);
+    }
+  }
+
+  renderOtherFormProvider(application) {
+    for (const providerConf of application.providers) {
+      if (providerConf.provider?.type === "Google" && providerConf.rule === "OneTap" && this.props.preview !== "auto") {
+        return (
+          <GoogleOneTapLoginVirtualButton application={application} providerConf={providerConf} />
+        );
+      }
     }
   }
 
@@ -575,6 +596,9 @@ class LoginPage extends React.Component {
                 return ProviderButton.renderProviderLogo(providerItem.provider, application, 30, 5, "small", this.props.location);
               })
             }
+            {
+              this.renderOtherFormProvider(application)
+            }
           </Form.Item>
         </Form>
       );
@@ -595,6 +619,9 @@ class LoginPage extends React.Component {
             application.providers?.filter(providerItem => this.isProviderVisible(providerItem)).map(providerItem => {
               return ProviderButton.renderProviderLogo(providerItem.provider, application, 40, 10, "big", this.props.location);
             })
+          }
+          {
+            this.renderOtherFormProvider(application)
           }
           <div>
             <br />
